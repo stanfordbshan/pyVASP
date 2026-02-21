@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, HTTPException, status
 
 from pyvasp.api.schemas import (
@@ -24,7 +26,7 @@ from pyvasp.application.use_cases import (
     ParseElectronicMetadataUseCase,
     SummarizeOutcarUseCase,
 )
-from pyvasp.core.errors import ValidationError
+from pyvasp.core.errors import AppError, ErrorCode, normalize_error
 from pyvasp.core.payloads import (
     validate_convergence_profile_request,
     validate_diagnostics_request,
@@ -48,36 +50,31 @@ def create_router(
     error_responses = {
         status.HTTP_400_BAD_REQUEST: {"model": ErrorSchema},
         status.HTTP_422_UNPROCESSABLE_CONTENT: {"model": ErrorSchema},
+        status.HTTP_500_INTERNAL_SERVER_ERROR: {"model": ErrorSchema},
     }
 
     @router.post("/v1/outcar/summary", response_model=SummaryResponseSchema, responses=error_responses)
     def summarize_outcar(request: SummaryRequestSchema) -> SummaryResponseSchema:
         try:
             payload = validate_summary_request(request.model_dump())
-        except ValidationError as exc:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        except Exception as exc:
+            _raise_http_from_error(normalize_error(exc))
 
         result = summary_use_case.execute(payload)
         if not result.ok or result.value is None:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=result.error or "Unknown application error",
-            )
+            _raise_http_from_error(result.error or AppError(ErrorCode.INTERNAL_ERROR, "Unknown application error"))
         return SummaryResponseSchema(**result.value.to_mapping())
 
     @router.post("/v1/outcar/diagnostics", response_model=DiagnosticsResponseSchema, responses=error_responses)
     def diagnose_outcar(request: DiagnosticsRequestSchema) -> DiagnosticsResponseSchema:
         try:
             payload = validate_diagnostics_request(request.model_dump())
-        except ValidationError as exc:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        except Exception as exc:
+            _raise_http_from_error(normalize_error(exc))
 
         result = diagnostics_use_case.execute(payload)
         if not result.ok or result.value is None:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=result.error or "Unknown application error",
-            )
+            _raise_http_from_error(result.error or AppError(ErrorCode.INTERNAL_ERROR, "Unknown application error"))
         return DiagnosticsResponseSchema(**result.value.to_mapping())
 
     @router.post(
@@ -88,15 +85,12 @@ def create_router(
     def convergence_profile(request: ConvergenceProfileRequestSchema) -> ConvergenceProfileResponseSchema:
         try:
             payload = validate_convergence_profile_request(request.model_dump())
-        except ValidationError as exc:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        except Exception as exc:
+            _raise_http_from_error(normalize_error(exc))
 
         result = profile_use_case.execute(payload)
         if not result.ok or result.value is None:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=result.error or "Unknown application error",
-            )
+            _raise_http_from_error(result.error or AppError(ErrorCode.INTERNAL_ERROR, "Unknown application error"))
         return ConvergenceProfileResponseSchema(**result.value.to_mapping())
 
     @router.post(
@@ -107,15 +101,12 @@ def create_router(
     def electronic_metadata(request: ElectronicMetadataRequestSchema) -> ElectronicMetadataResponseSchema:
         try:
             payload = validate_electronic_metadata_request(request.model_dump())
-        except ValidationError as exc:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        except Exception as exc:
+            _raise_http_from_error(normalize_error(exc))
 
         result = electronic_use_case.execute(payload)
         if not result.ok or result.value is None:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=result.error or "Unknown application error",
-            )
+            _raise_http_from_error(result.error or AppError(ErrorCode.INTERNAL_ERROR, "Unknown application error"))
         return ElectronicMetadataResponseSchema(**result.value.to_mapping())
 
     @router.post(
@@ -126,15 +117,38 @@ def create_router(
     def generate_relax_input(request: GenerateRelaxInputRequestSchema) -> GenerateRelaxInputResponseSchema:
         try:
             payload = validate_generate_relax_input_request(request.model_dump())
-        except ValidationError as exc:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        except Exception as exc:
+            _raise_http_from_error(normalize_error(exc))
 
         result = relax_input_use_case.execute(payload)
         if not result.ok or result.value is None:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=result.error or "Unknown application error",
-            )
+            _raise_http_from_error(result.error or AppError(ErrorCode.INTERNAL_ERROR, "Unknown application error"))
         return GenerateRelaxInputResponseSchema(**result.value.to_mapping())
 
     return router
+
+
+def _raise_http_from_error(error: AppError) -> None:
+    raise HTTPException(status_code=_status_for_error(error), detail=_error_detail(error))
+
+
+def _status_for_error(error: AppError) -> int:
+    if error.code in {
+        ErrorCode.VALIDATION_ERROR,
+        ErrorCode.FILE_NOT_FOUND,
+        ErrorCode.FILE_NOT_FILE,
+    }:
+        return status.HTTP_400_BAD_REQUEST
+
+    if error.code in {
+        ErrorCode.PARSE_ERROR,
+        ErrorCode.IO_ERROR,
+        ErrorCode.UNSUPPORTED_OPERATION,
+    }:
+        return status.HTTP_422_UNPROCESSABLE_CONTENT
+
+    return status.HTTP_500_INTERNAL_SERVER_ERROR
+
+
+def _error_detail(error: AppError) -> dict[str, Any]:
+    return error.to_mapping()

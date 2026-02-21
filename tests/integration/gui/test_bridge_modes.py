@@ -92,6 +92,21 @@ def test_gui_host_ui_diagnostics_endpoint() -> None:
     assert response.json()["magnetization"]["axis"] == "z"
 
 
+def test_gui_host_ui_summary_missing_file_returns_structured_error() -> None:
+    app = create_gui_app(mode="direct")
+    client = TestClient(app)
+
+    response = client.post(
+        "/ui/summary",
+        json={"outcar_path": "/missing/OUTCAR", "include_history": False},
+    )
+
+    assert response.status_code == 400
+    detail = response.json()["detail"]
+    assert detail["code"] == "FILE_NOT_FOUND"
+    assert "does not exist" in detail["message"]
+
+
 def test_gui_host_ui_profile_electronic_and_input_endpoints() -> None:
     app = create_gui_app(mode="direct")
     client = TestClient(app)

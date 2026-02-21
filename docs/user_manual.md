@@ -14,6 +14,9 @@ Current capabilities:
   - DOS metadata from `DOSCAR`
 - Input generation:
   - generate `INCAR`, `KPOINTS`, `POSCAR` for relaxation from structure JSON
+- Structured failure reporting:
+  - stable error codes across API/UI/direct modes
+  - consistent validation/parse/internal failure classes
 
 ## 2. Installation
 
@@ -80,7 +83,28 @@ Optional runtime environment:
 - `PYVASP_UI_MODE=direct|api|auto`
 - `PYVASP_API_BASE_URL=http://127.0.0.1:8000`
 
-## 6. Structure JSON Format (input generation)
+## 6. Error Responses
+
+API/UI error payload format:
+```json
+{
+  "detail": {
+    "code": "FILE_NOT_FOUND",
+    "message": "OUTCAR file does not exist: /missing/OUTCAR",
+    "details": {"field": "outcar_path", "path": "/missing/OUTCAR"}
+  }
+}
+```
+
+Status mapping:
+- `400`: input/path validation issues
+- `422`: parse or unsupported-operation issues
+- `500`: unexpected internal errors
+
+Direct CLI mode mirrors the same code via message prefix:
+- `"[FILE_NOT_FOUND] OUTCAR file does not exist: ..."`
+
+## 7. Structure JSON Format (input generation)
 
 ```json
 {
@@ -93,7 +117,7 @@ Optional runtime environment:
 }
 ```
 
-## 7. Troubleshooting
+## 8. Troubleshooting
 
 - Missing files: pass absolute paths to existing files.
 - Electronic metadata requires at least one of `EIGENVAL` or `DOSCAR`.

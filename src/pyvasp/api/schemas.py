@@ -221,4 +221,4 @@ class GenerateRelaxInputResponseSchema(BaseModel):
 class ErrorSchema(BaseModel):
     """Error response model."""
 
-    detail: str
+    detail: dict[str, Any]

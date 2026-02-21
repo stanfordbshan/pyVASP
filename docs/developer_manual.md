@@ -1,6 +1,6 @@
 # pyVASP Developer Manual
 
-## 1. File Tree (Phase 3 + Electronic Parsing)
+## 1. File Tree (Phase 4.1 + Error Hardening)
 
 ```text
 pyVASP/
@@ -58,6 +58,7 @@ pyVASP/
     unit/
       core/
         test_analysis.py
+        test_errors.py
         test_payloads.py
       application/
         test_use_cases.py
@@ -85,6 +86,7 @@ pyVASP/
 - Domain models for OUTCAR, electronic metadata, and input generation.
 - Shared payload mapping/validation for all adapter contracts.
 - Core analysis algorithms for convergence report/profile.
+- Canonical error taxonomy (`ErrorCode`, `AppError`) and error normalization.
 
 ### application
 - Transport-agnostic use-cases:
@@ -93,6 +95,7 @@ pyVASP/
   - `BuildConvergenceProfileUseCase`
   - `ParseElectronicMetadataUseCase`
   - `GenerateRelaxInputUseCase`
+- Use-cases return `AppResult` with structured `AppError` failures; no adapter-specific error format.
 
 ### method modules
 - `outcar`: OUTCAR parsing.
@@ -103,6 +106,7 @@ pyVASP/
 - `api`: HTTP endpoints only.
 - `gui`: host + bridge for direct/api/auto execution.
 - `cli`: script-oriented command surface.
+- Adapters map `AppError` into transport format (HTTP/JSON or runtime UI/CLI message).
 
 ## 3. Dependency Rules
 
@@ -122,7 +126,25 @@ All adapter entry points call core validators first:
 - electronic metadata
 - relaxation input generation
 
-## 5. Extension Workflow
+Validation hardening examples:
+- finite numeric enforcement
+- k-point mesh upper-bound checks
+- non-zero lattice vector checks
+- constrained INCAR override keys
+
+## 5. Error Contract Strategy
+
+`core/errors.py` defines stable transport-neutral errors:
+- `ErrorCode`: machine-readable code enum.
+- `AppError`: canonical structured error payload (`code`, `message`, optional `details`).
+- `normalize_error(...)`: converts exceptions into stable `AppError`.
+
+Adapter mapping policy:
+- API maps `AppError` to `HTTPException(detail={code,message,details?})`.
+- GUI host mirrors the same structure and status policy for `/ui/*` endpoints.
+- CLI prints message strings, preserving prefixed error code in direct mode.
+
+## 6. Extension Workflow
 
 1. Add domain model + validation in `core`.
 2. Add parsing/generation logic in a method module.
@@ -131,7 +153,7 @@ All adapter entry points call core validators first:
 5. Add unit + integration tests.
 6. Update docs.
 
-## 6. Notes on Educational Clarity
+## 7. Notes on Educational Clarity
 
 - Parsing logic is separated by output type (OUTCAR vs EIGENVAL/DOSCAR).
 - Adapter surfaces stay thin; orchestration and mapping happen in application/core.

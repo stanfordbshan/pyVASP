@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Generic, TypeVar
 
+from pyvasp.core.errors import AppError, normalize_error
+
 T = TypeVar("T")
 
 
@@ -14,12 +16,12 @@ class AppResult(Generic[T]):
 
     ok: bool
     value: T | None = None
-    error: str | None = None
+    error: AppError | None = None
 
     @classmethod
     def success(cls, value: T) -> "AppResult[T]":
         return cls(ok=True, value=value)
 
     @classmethod
-    def failure(cls, error: str) -> "AppResult[T]":
-        return cls(ok=False, error=error)
+    def failure(cls, error: AppError | Exception | str) -> "AppResult[T]":
+        return cls(ok=False, error=normalize_error(error))

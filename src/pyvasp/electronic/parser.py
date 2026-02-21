@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Sequence
 
-from pyvasp.core.errors import ParseError
+from pyvasp.core.errors import ErrorCode, ParseError
 from pyvasp.core.models import (
     BandGapChannel,
     BandGapSummary,
@@ -53,7 +53,11 @@ class ElectronicParser:
         try:
             lines = path.read_text(encoding="utf-8", errors="ignore").splitlines()
         except OSError as exc:
-            raise ParseError(f"Unable to read EIGENVAL: {path}") from exc
+            raise ParseError(
+                f"Unable to read EIGENVAL: {path}",
+                code=ErrorCode.IO_ERROR,
+                details={"path": str(path)},
+            ) from exc
 
         if len(lines) < 8:
             raise ParseError("EIGENVAL appears too short")
@@ -138,7 +142,11 @@ class ElectronicParser:
         try:
             lines = path.read_text(encoding="utf-8", errors="ignore").splitlines()
         except OSError as exc:
-            raise ParseError(f"Unable to read DOSCAR: {path}") from exc
+            raise ParseError(
+                f"Unable to read DOSCAR: {path}",
+                code=ErrorCode.IO_ERROR,
+                details={"path": str(path)},
+            ) from exc
 
         if len(lines) < 7:
             raise ParseError("DOSCAR appears too short")

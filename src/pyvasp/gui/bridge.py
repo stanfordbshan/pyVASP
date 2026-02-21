@@ -21,6 +21,7 @@ from pyvasp.core.payloads import (
     validate_generate_relax_input_request,
     validate_summary_request,
 )
+from pyvasp.core.errors import AppError, normalize_error
 from pyvasp.electronic.parser import ElectronicParser
 from pyvasp.inputgen.generator import RelaxInputGenerator
 from pyvasp.outcar.parser import OutcarParser
@@ -195,38 +196,53 @@ class GuiBackendBridge:
             ) from api_exc
 
     def _call_direct_summary(self, payload: dict) -> dict:
-        canonical = validate_summary_request(payload)
+        try:
+            canonical = validate_summary_request(payload)
+        except Exception as exc:
+            raise RuntimeError(_format_app_error(normalize_error(exc), "Invalid summary request")) from exc
         result = self._summary_use_case.execute(canonical)
         if not result.ok or result.value is None:
-            raise RuntimeError(result.error or "Unknown direct summary error")
+            raise RuntimeError(_format_app_error(result.error, "Unknown direct summary error"))
         return result.value.to_mapping()
 
     def _call_direct_diagnostics(self, payload: dict) -> dict:
-        canonical = validate_diagnostics_request(payload)
+        try:
+            canonical = validate_diagnostics_request(payload)
+        except Exception as exc:
+            raise RuntimeError(_format_app_error(normalize_error(exc), "Invalid diagnostics request")) from exc
         result = self._diagnostics_use_case.execute(canonical)
         if not result.ok or result.value is None:
-            raise RuntimeError(result.error or "Unknown direct diagnostics error")
+            raise RuntimeError(_format_app_error(result.error, "Unknown direct diagnostics error"))
         return result.value.to_mapping()
 
     def _call_direct_profile(self, payload: dict) -> dict:
-        canonical = validate_convergence_profile_request(payload)
+        try:
+            canonical = validate_convergence_profile_request(payload)
+        except Exception as exc:
+            raise RuntimeError(_format_app_error(normalize_error(exc), "Invalid profile request")) from exc
         result = self._profile_use_case.execute(canonical)
         if not result.ok or result.value is None:
-            raise RuntimeError(result.error or "Unknown direct profile error")
+            raise RuntimeError(_format_app_error(result.error, "Unknown direct profile error"))
         return result.value.to_mapping()
 
     def _call_direct_electronic_metadata(self, payload: dict) -> dict:
-        canonical = validate_electronic_metadata_request(payload)
+        try:
+            canonical = validate_electronic_metadata_request(payload)
+        except Exception as exc:
+            raise RuntimeError(_format_app_error(normalize_error(exc), "Invalid electronic metadata request")) from exc
         result = self._electronic_use_case.execute(canonical)
         if not result.ok or result.value is None:
-            raise RuntimeError(result.error or "Unknown direct electronic metadata error")
+            raise RuntimeError(_format_app_error(result.error, "Unknown direct electronic metadata error"))
         return result.value.to_mapping()
 
     def _call_direct_relax_input(self, payload: dict) -> dict:
-        canonical = validate_generate_relax_input_request(payload)
+        try:
+            canonical = validate_generate_relax_input_request(payload)
+        except Exception as exc:
+            raise RuntimeError(_format_app_error(normalize_error(exc), "Invalid relax input request")) from exc
         result = self._relax_input_use_case.execute(canonical)
         if not result.ok or result.value is None:
-            raise RuntimeError(result.error or "Unknown direct relax input error")
+            raise RuntimeError(_format_app_error(result.error, "Unknown direct relax input error"))
         return result.value.to_mapping()
 
     def _call_api(self, *, api_path: str, payload: dict) -> dict:
@@ -244,8 +260,34 @@ class GuiBackendBridge:
                 raw = response.read().decode("utf-8")
         except error.HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="ignore")
+            parsed = _extract_api_error(detail)
+            if parsed is not None:
+                raise RuntimeError(f"API request failed ({exc.code}) [{parsed['code']}]: {parsed['message']}") from exc
             raise RuntimeError(f"API request failed ({exc.code}): {detail}") from exc
         except error.URLError as exc:
             raise RuntimeError(f"API request failed: {exc.reason}") from exc
 
         return json.loads(raw)
+
+
+def _format_app_error(error: AppError | None, fallback: str) -> str:
+    if error is None:
+        return fallback
+    return f"[{error.code.value}] {error.message}"
+
+
+def _extract_api_error(raw_detail: str) -> dict[str, str] | None:
+    try:
+        payload = json.loads(raw_detail)
+    except json.JSONDecodeError:
+        return None
+
+    detail = payload.get("detail") if isinstance(payload, dict) else None
+    if not isinstance(detail, dict):
+        return None
+
+    code = detail.get("code")
+    message = detail.get("message")
+    if not isinstance(code, str) or not isinstance(message, str):
+        return None
+    return {"code": code, "message": message}

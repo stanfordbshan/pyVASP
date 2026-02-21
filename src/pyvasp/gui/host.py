@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import re
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
@@ -68,6 +69,9 @@ class UiConfigResponse(BaseModel):
     api_base_url: str
 
 
+ERROR_PREFIX_RE = re.compile(r"^\[([A-Z_]+)\]\s*(.+)$")
+
+
 def create_gui_app(
     *,
     mode: str | None = None,
@@ -104,7 +108,7 @@ def create_gui_app(
                 include_history=request.include_history,
             )
         except Exception as exc:
-            raise HTTPException(status_code=422, detail=str(exc)) from exc
+            _raise_ui_http_error(exc)
 
     @app.post("/ui/diagnostics")
     def ui_diagnostics(request: UiDiagnosticsRequest) -> dict:
@@ -115,14 +119,14 @@ def create_gui_app(
                 force_tolerance_ev_per_a=request.force_tolerance_ev_per_a,
             )
         except Exception as exc:
-            raise HTTPException(status_code=422, detail=str(exc)) from exc
+            _raise_ui_http_error(exc)
 
     @app.post("/ui/convergence-profile")
     def ui_convergence_profile(request: UiConvergenceProfileRequest) -> dict:
         try:
             return app.state.bridge.build_convergence_profile(outcar_path=request.outcar_path)
         except Exception as exc:
-            raise HTTPException(status_code=422, detail=str(exc)) from exc
+            _raise_ui_http_error(exc)
 
     @app.post("/ui/electronic-metadata")
     def ui_electronic_metadata(request: UiElectronicMetadataRequest) -> dict:
@@ -132,7 +136,7 @@ def create_gui_app(
                 doscar_path=request.doscar_path,
             )
         except Exception as exc:
-            raise HTTPException(status_code=422, detail=str(exc)) from exc
+            _raise_ui_http_error(exc)
 
     @app.post("/ui/generate-relax-input")
     def ui_generate_relax_input(request: UiRelaxInputRequest) -> dict:
@@ -154,7 +158,7 @@ def create_gui_app(
                 incar_overrides=request.incar_overrides,
             )
         except Exception as exc:
-            raise HTTPException(status_code=422, detail=str(exc)) from exc
+            _raise_ui_http_error(exc)
 
     return app
 
@@ -165,6 +169,24 @@ def main() -> None:
     import uvicorn
 
     uvicorn.run("pyvasp.gui.host:create_gui_app", factory=True, host="127.0.0.1", port=8080, reload=False)
+
+
+def _raise_ui_http_error(exc: Exception) -> None:
+    message = str(exc)
+    code = "INTERNAL_ERROR"
+
+    prefixed = ERROR_PREFIX_RE.match(message)
+    if prefixed:
+        code = prefixed.group(1)
+        message = prefixed.group(2)
+
+    status_code = 422
+    if code in {"VALIDATION_ERROR", "FILE_NOT_FOUND", "FILE_NOT_FILE"}:
+        status_code = 400
+    elif code == "INTERNAL_ERROR":
+        status_code = 500
+
+    raise HTTPException(status_code=status_code, detail={"code": code, "message": message}) from exc
 
 
 if __name__ == "__main__":

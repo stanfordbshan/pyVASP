@@ -9,7 +9,7 @@ from pyvasp.application.use_cases import (
     ParseElectronicMetadataUseCase,
     SummarizeOutcarUseCase,
 )
-from pyvasp.core.errors import ParseError
+from pyvasp.core.errors import ErrorCode, ParseError
 from pyvasp.core.models import (
     BandGapChannel,
     BandGapSummary,
@@ -169,7 +169,9 @@ def test_summary_use_case_failure() -> None:
 
     result = use_case.execute(request)
     assert result.ok is False
-    assert result.error == "failed"
+    assert result.error is not None
+    assert result.error.code == ErrorCode.PARSE_ERROR
+    assert result.error.message == "failed"
 
 
 def test_diagnostics_use_case_success() -> None:
@@ -193,7 +195,9 @@ def test_diagnostics_use_case_failure() -> None:
 
     result = use_case.execute(request)
     assert result.ok is False
-    assert result.error == "diagnostics failed"
+    assert result.error is not None
+    assert result.error.code == ErrorCode.PARSE_ERROR
+    assert result.error.message == "diagnostics failed"
 
 
 def test_profile_use_case_success() -> None:
@@ -229,7 +233,9 @@ def test_electronic_use_case_failure() -> None:
 
     result = use_case.execute(request)
     assert result.ok is False
-    assert result.error == "electronic parse failed"
+    assert result.error is not None
+    assert result.error.code == ErrorCode.PARSE_ERROR
+    assert result.error.message == "electronic parse failed"
 
 
 def test_generate_relax_input_use_case_success() -> None:
@@ -270,4 +276,6 @@ def test_generate_relax_input_use_case_failure() -> None:
 
     result = use_case.execute(request)
     assert result.ok is False
-    assert result.error == "input generation failed"
+    assert result.error is not None
+    assert result.error.code == ErrorCode.INTERNAL_ERROR
+    assert result.error.message == "input generation failed"

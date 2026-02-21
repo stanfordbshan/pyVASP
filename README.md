@@ -2,13 +2,16 @@
 
 pyVASP is a layered Python toolkit for VASP input generation, post-processing, and visualization workflows.
 
-Phase 1-3 capabilities now include:
+Phase 1-4.1 capabilities now include:
 - OUTCAR summary and diagnostics (energy/force/pressure/stress/magnetization/convergence)
 - convergence profile output for chart-ready visualization
 - relaxation input generation (`INCAR`, `KPOINTS`, `POSCAR`)
 - VASPKIT-like electronic parsing from standard outputs:
   - band gap metadata from `EIGENVAL`
   - DOS metadata from `DOSCAR`
+- hardened structured errors across direct/API/UI flows:
+  - stable machine-readable error codes
+  - consistent HTTP/detail mapping for adapters
 
 ## Architecture (strict layering)
 
@@ -69,6 +72,16 @@ Endpoints:
 - `POST /v1/outcar/convergence-profile`
 - `POST /v1/electronic/metadata`
 - `POST /v1/input/relax-generate`
+
+Error response contract:
+- `detail.code`: stable error code (for example `VALIDATION_ERROR`, `FILE_NOT_FOUND`, `PARSE_ERROR`)
+- `detail.message`: human-readable explanation
+- `detail.details` (optional): structured context (field/path metadata)
+
+Status mapping:
+- `400`: request/path validation errors (`VALIDATION_ERROR`, `FILE_NOT_FOUND`, `FILE_NOT_FILE`)
+- `422`: parse/semantic operation errors (`PARSE_ERROR`, `IO_ERROR`, `UNSUPPORTED_OPERATION`)
+- `500`: unexpected internal failures (`INTERNAL_ERROR`)
 
 ## GUI Host
 

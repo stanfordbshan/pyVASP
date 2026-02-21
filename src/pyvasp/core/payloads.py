@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+import math
 import re
 from pathlib import Path
 from typing import Any
@@ -29,6 +30,7 @@ except Exception:  # pragma: no cover - fallback when ASE is unavailable
     ASE_ATOMIC_NUMBERS = {}
 
 ELEMENT_RE = re.compile(r"^[A-Z][a-z]?$")
+INCAR_KEY_RE = re.compile(r"^[A-Z][A-Z0-9_]*$")
 
 
 @dataclass(frozen=True)
@@ -178,7 +180,23 @@ class GenerateRelaxInputRequestPayload:
         overrides_raw = raw.get("incar_overrides") or {}
         if not isinstance(overrides_raw, dict):
             raise ValidationError("incar_overrides must be an object/map")
-        overrides = tuple((str(key).upper(), value) for key, value in sorted(overrides_raw.items()))
+        overrides_normalized: list[tuple[str, Any]] = []
+        for key, value in sorted(overrides_raw.items()):
+            normalized_key = str(key).upper().strip()
+            if not normalized_key or not INCAR_KEY_RE.match(normalized_key):
+                raise ValidationError(
+                    f"Invalid INCAR override key: {key}",
+                    details={"field": "incar_overrides"},
+                )
+            overrides_normalized.append((normalized_key, value))
+        overrides = tuple(overrides_normalized)
+
+        if encut < 150:
+            raise ValidationError("encut must be >= 150 eV for reliable relax input generation")
+        if nsw > 5000:
+            raise ValidationError("nsw must be <= 5000")
+        if abs(ediffg) < 1e-12:
+            raise ValidationError("ediffg must be non-zero")
 
         return cls(
             structure=structure,
@@ -557,7 +575,10 @@ def _parse_structure(raw: Any) -> RelaxStructure:
 
     vectors: list[tuple[float, float, float]] = []
     for idx, vector in enumerate(vectors_raw, start=1):
-        vectors.append(_parse_vec3(vector, f"structure.lattice_vectors[{idx}]"))
+        parsed_vector = _parse_vec3(vector, f"structure.lattice_vectors[{idx}]")
+        if _vec_norm(parsed_vector) <= 1e-12:
+            raise ValidationError(f"structure.lattice_vectors[{idx}] must be non-zero")
+        vectors.append(parsed_vector)
 
     atoms_raw = raw.get("atoms")
     if not isinstance(atoms_raw, (list, tuple)) or not atoms_raw:
@@ -588,6 +609,8 @@ def _parse_kmesh(raw: Any) -> tuple[int, int, int]:
     values = []
     for idx, value in enumerate(raw, start=1):
         parsed = _coerce_positive_int(value, f"kmesh[{idx}]")
+        if parsed > 64:
+            raise ValidationError(f"kmesh[{idx}] must be <= 64")
         values.append(parsed)
     return (values[0], values[1], values[2])
 
@@ -600,6 +623,9 @@ def _parse_vec3(raw: Any, field_name: str) -> tuple[float, float, float]:
         x, y, z = float(raw[0]), float(raw[1]), float(raw[2])
     except (TypeError, ValueError) as exc:
         raise ValidationError(f"{field_name} must contain numeric values") from exc
+
+    if not (math.isfinite(x) and math.isfinite(y) and math.isfinite(z)):
+        raise ValidationError(f"{field_name} contains non-finite values")
 
     return (x, y, z)
 
@@ -640,14 +666,20 @@ def _coerce_positive_float(value: Any, field_name: str) -> float:
 
     if number <= 0:
         raise ValidationError(f"{field_name} must be > 0")
+    if not math.isfinite(number):
+        raise ValidationError(f"{field_name} must be finite")
     return number
 
 
 def _coerce_float(value: Any, field_name: str) -> float:
     try:
-        return float(value)
+        number = float(value)
     except (TypeError, ValueError) as exc:
         raise ValidationError(f"{field_name} must be numeric") from exc
+
+    if not math.isfinite(number):
+        raise ValidationError(f"{field_name} must be finite")
+    return number
 
 
 def _coerce_positive_int(value: Any, field_name: str) -> int:
@@ -666,3 +698,7 @@ def _coerce_int(value: Any, field_name: str) -> int:
         return int(value)
     except (TypeError, ValueError) as exc:
         raise ValidationError(f"{field_name} must be an integer") from exc
+
+
+def _vec_norm(vec: tuple[float, float, float]) -> float:
+    return math.sqrt((vec[0] * vec[0]) + (vec[1] * vec[1]) + (vec[2] * vec[2]))

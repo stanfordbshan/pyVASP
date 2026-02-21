@@ -31,10 +31,12 @@ from pyvasp.core.payloads import (
     SummaryRequestPayload,
     SummaryResponsePayload,
 )
+from pyvasp.core.errors import AppError, ErrorCode, ParseError, PyVaspError, ValidationError
 from pyvasp.core.result import AppResult
 
 __all__ = [
     "AppResult",
+    "AppError",
     "BandGapChannel",
     "BandGapSummary",
     "ConvergenceProfile",
@@ -48,6 +50,7 @@ __all__ = [
     "ElectronicMetadataRequestPayload",
     "ElectronicMetadataResponsePayload",
     "ElectronicStructureMetadata",
+    "ErrorCode",
     "EnergyPoint",
     "GeneratedInputBundle",
     "GenerateRelaxInputRequestPayload",
@@ -62,4 +65,7 @@ __all__ = [
     "StructureAtom",
     "SummaryRequestPayload",
     "SummaryResponsePayload",
+    "ParseError",
+    "PyVaspError",
+    "ValidationError",
 ]

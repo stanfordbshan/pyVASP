@@ -40,7 +40,7 @@ class SummarizeOutcarUseCase:
             payload = SummaryResponsePayload.from_summary(summary, include_history=request.include_history)
             return AppResult.success(payload)
         except (ValidationError, ParseError, OSError) as exc:
-            return AppResult.failure(str(exc))
+            return AppResult.failure(exc)
 
 
 class DiagnoseOutcarUseCase:
@@ -79,7 +79,7 @@ class DiagnoseOutcarUseCase:
 
             return AppResult.success(DiagnosticsResponsePayload.from_diagnostics(diagnostics))
         except (ValidationError, ParseError, OSError) as exc:
-            return AppResult.failure(str(exc))
+            return AppResult.failure(exc)
 
 
 class BuildConvergenceProfileUseCase:
@@ -97,7 +97,7 @@ class BuildConvergenceProfileUseCase:
             payload = ConvergenceProfileResponsePayload.from_profile(profile, summary=summary)
             return AppResult.success(payload)
         except (ValidationError, ParseError, OSError) as exc:
-            return AppResult.failure(str(exc))
+            return AppResult.failure(exc)
 
 
 class ParseElectronicMetadataUseCase:
@@ -117,7 +117,7 @@ class ParseElectronicMetadataUseCase:
             )
             return AppResult.success(ElectronicMetadataResponsePayload.from_metadata(metadata))
         except (ValidationError, ParseError, OSError, ValueError) as exc:
-            return AppResult.failure(str(exc))
+            return AppResult.failure(exc)
 
 
 class GenerateRelaxInputUseCase:
@@ -134,4 +134,4 @@ class GenerateRelaxInputUseCase:
             bundle = self._builder.generate_relax_input(spec)
             return AppResult.success(GenerateRelaxInputResponsePayload.from_bundle(bundle))
         except (ValidationError, OSError, ValueError) as exc:
-            return AppResult.failure(str(exc))
+            return AppResult.failure(exc)

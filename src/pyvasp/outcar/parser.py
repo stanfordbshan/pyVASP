@@ -6,7 +6,7 @@ import math
 import re
 from pathlib import Path
 
-from pyvasp.core.errors import ParseError
+from pyvasp.core.errors import ErrorCode, ParseError
 from pyvasp.core.models import (
     EnergyPoint,
     MagnetizationSummary,
@@ -112,7 +112,11 @@ class OutcarParser:
         try:
             return outcar_path.read_text(encoding="utf-8", errors="ignore")
         except OSError as exc:
-            raise ParseError(f"Unable to read OUTCAR: {outcar_path}") from exc
+            raise ParseError(
+                f"Unable to read OUTCAR: {outcar_path}",
+                code=ErrorCode.IO_ERROR,
+                details={"path": str(outcar_path)},
+            ) from exc
 
     def _parse_system_name(self, lines: list[str]) -> str | None:
         for line in lines:

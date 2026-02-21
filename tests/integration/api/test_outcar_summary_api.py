@@ -37,7 +37,26 @@ def test_api_summarize_outcar_bad_path() -> None:
     )
 
     assert response.status_code == 400
-    assert "does not exist" in response.json()["detail"]
+    detail = response.json()["detail"]
+    assert detail["code"] == "FILE_NOT_FOUND"
+    assert "does not exist" in detail["message"]
+    assert detail["details"]["field"] == "outcar_path"
+
+
+def test_api_summarize_outcar_parse_error(tmp_path: Path) -> None:
+    invalid_outcar = tmp_path / "OUTCAR.invalid"
+    invalid_outcar.write_text("this file is not a valid OUTCAR\n", encoding="utf-8")
+
+    client = TestClient(create_app())
+    response = client.post(
+        "/v1/outcar/summary",
+        json={"outcar_path": str(invalid_outcar), "include_history": False},
+    )
+
+    assert response.status_code == 422
+    detail = response.json()["detail"]
+    assert detail["code"] == "PARSE_ERROR"
+    assert "valid VASP OUTCAR" in detail["message"]
 
 
 def test_api_diagnostics_success() -> None:
@@ -71,7 +90,9 @@ def test_api_diagnostics_bad_tolerance() -> None:
     )
 
     assert response.status_code == 400
-    assert "energy_tolerance_ev" in response.json()["detail"]
+    detail = response.json()["detail"]
+    assert detail["code"] == "VALIDATION_ERROR"
+    assert "energy_tolerance_ev" in detail["message"]
 
 
 def test_api_convergence_profile_success() -> None:
@@ -109,7 +130,9 @@ def test_api_electronic_metadata_requires_one_file() -> None:
     response = client.post("/v1/electronic/metadata", json={})
 
     assert response.status_code == 400
-    assert "At least one" in response.json()["detail"]
+    detail = response.json()["detail"]
+    assert detail["code"] == "VALIDATION_ERROR"
+    assert "At least one" in detail["message"]
 
 
 def test_api_generate_relax_input_success() -> None:
