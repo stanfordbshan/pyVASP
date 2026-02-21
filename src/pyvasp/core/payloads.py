@@ -115,6 +115,35 @@ class IonicSeriesRequestPayload:
 
 
 @dataclass(frozen=True)
+class ExportTabularRequestPayload:
+    """Canonical request payload for OUTCAR tabular export."""
+
+    outcar_path: str
+    dataset: str = "ionic_series"
+    delimiter: str = ","
+
+    @classmethod
+    def from_mapping(cls, raw: dict[str, Any]) -> "ExportTabularRequestPayload":
+        path_value = raw.get("outcar_path")
+        resolved = validate_outcar_path(str(path_value) if path_value is not None else "")
+
+        dataset = str(raw.get("dataset", "ionic_series")).strip().lower()
+        if dataset not in {"convergence_profile", "ionic_series"}:
+            raise ValidationError("dataset must be one of: convergence_profile, ionic_series")
+
+        delimiter = _normalize_tabular_delimiter(raw.get("delimiter", ","))
+
+        return cls(
+            outcar_path=str(resolved),
+            dataset=dataset,
+            delimiter=delimiter,
+        )
+
+    def validated_path(self) -> Path:
+        return validate_outcar_path(self.outcar_path)
+
+
+@dataclass(frozen=True)
 class ElectronicMetadataRequestPayload:
     """Canonical request payload for EIGENVAL/DOSCAR metadata parsing."""
 
@@ -438,6 +467,25 @@ class IonicSeriesResponsePayload:
 
 
 @dataclass(frozen=True)
+class ExportTabularResponsePayload:
+    """Canonical OUTCAR tabular-export response consumed by adapters."""
+
+    source_path: str
+    dataset: str
+    format: str
+    delimiter: str
+    filename_hint: str
+    n_rows: int
+    content: str
+    warnings: tuple[str, ...]
+
+    def to_mapping(self) -> dict[str, Any]:
+        mapped = asdict(self)
+        mapped["warnings"] = list(self.warnings)
+        return mapped
+
+
+@dataclass(frozen=True)
 class ElectronicMetadataResponsePayload:
     """Canonical EIGENVAL/DOSCAR metadata response consumed by adapters."""
 
@@ -529,6 +577,17 @@ def validate_ionic_series_request(raw: dict[str, Any]) -> IonicSeriesRequestPayl
 
     try:
         return IonicSeriesRequestPayload.from_mapping(raw)
+    except ValidationError:
+        raise
+    except Exception as exc:  # pragma: no cover - defensive normalization
+        raise ValidationError(str(exc)) from exc
+
+
+def validate_export_tabular_request(raw: dict[str, Any]) -> ExportTabularRequestPayload:
+    """Map arbitrary adapter payload into canonical tabular-export request."""
+
+    try:
+        return ExportTabularRequestPayload.from_mapping(raw)
     except ValidationError:
         raise
     except Exception as exc:  # pragma: no cover - defensive normalization
@@ -767,3 +826,21 @@ def _coerce_int(value: Any, field_name: str) -> int:
 
 def _vec_norm(vec: tuple[float, float, float]) -> float:
     return math.sqrt((vec[0] * vec[0]) + (vec[1] * vec[1]) + (vec[2] * vec[2]))
+
+
+def _normalize_tabular_delimiter(value: Any) -> str:
+    raw = str(value)
+    if raw == "\t":
+        return "\t"
+    token = raw.strip().lower()
+    named = {
+        ",": ",",
+        "comma": ",",
+        ";": ";",
+        "semicolon": ";",
+        "\\t": "\t",
+        "tab": "\t",
+    }
+    if token in named:
+        return named[token]
+    raise ValidationError("delimiter must be one of: comma, semicolon, tab")

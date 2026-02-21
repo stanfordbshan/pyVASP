@@ -34,6 +34,14 @@ class IonicSeriesRequestSchema(BaseModel):
     outcar_path: str = Field(..., description="Path to an OUTCAR file")
 
 
+class ExportTabularRequestSchema(BaseModel):
+    """Request payload for OUTCAR tabular export endpoint."""
+
+    outcar_path: str = Field(..., description="Path to an OUTCAR file")
+    dataset: str = Field(default="ionic_series", description="Dataset: convergence_profile or ionic_series")
+    delimiter: str = Field(default=",", description="Delimiter token or character")
+
+
 class ElectronicMetadataRequestSchema(BaseModel):
     """Request payload for EIGENVAL/DOSCAR metadata endpoint."""
 
@@ -221,6 +229,19 @@ class IonicSeriesResponseSchema(BaseModel):
     source_path: str
     points: list[IonicSeriesPointSchema]
     n_steps: int
+    warnings: list[str]
+
+
+class ExportTabularResponseSchema(BaseModel):
+    """Response schema for OUTCAR tabular export endpoint."""
+
+    source_path: str
+    dataset: str
+    format: str
+    delimiter: str
+    filename_hint: str
+    n_rows: int
+    content: str
     warnings: list[str]
 
 

@@ -35,6 +35,13 @@ form.addEventListener("submit", async (event) => {
   } else if (operation === "ionic_series") {
     endpoint = "/ui/ionic-series";
     payload = { outcar_path: outcarPath };
+  } else if (operation === "export_tabular") {
+    endpoint = "/ui/export-tabular";
+    payload = {
+      outcar_path: outcarPath,
+      dataset: document.getElementById("export_dataset").value,
+      delimiter: document.getElementById("export_delimiter").value,
+    };
   } else if (operation === "electronic_metadata") {
     endpoint = "/ui/electronic-metadata";
     payload = {

@@ -14,6 +14,8 @@ from pyvasp.api.schemas import (
     ElectronicMetadataRequestSchema,
     ElectronicMetadataResponseSchema,
     ErrorSchema,
+    ExportTabularRequestSchema,
+    ExportTabularResponseSchema,
     GenerateRelaxInputRequestSchema,
     GenerateRelaxInputResponseSchema,
     IonicSeriesRequestSchema,
@@ -25,6 +27,7 @@ from pyvasp.application.use_cases import (
     BuildConvergenceProfileUseCase,
     BuildIonicSeriesUseCase,
     DiagnoseOutcarUseCase,
+    ExportOutcarTabularUseCase,
     GenerateRelaxInputUseCase,
     ParseElectronicMetadataUseCase,
     SummarizeOutcarUseCase,
@@ -34,6 +37,7 @@ from pyvasp.core.payloads import (
     validate_convergence_profile_request,
     validate_diagnostics_request,
     validate_electronic_metadata_request,
+    validate_export_tabular_request,
     validate_generate_relax_input_request,
     validate_ionic_series_request,
     validate_summary_request,
@@ -45,6 +49,7 @@ def create_router(
     diagnostics_use_case: DiagnoseOutcarUseCase,
     profile_use_case: BuildConvergenceProfileUseCase,
     ionic_series_use_case: BuildIonicSeriesUseCase,
+    export_tabular_use_case: ExportOutcarTabularUseCase,
     electronic_use_case: ParseElectronicMetadataUseCase,
     relax_input_use_case: GenerateRelaxInputUseCase,
 ) -> APIRouter:
@@ -113,6 +118,22 @@ def create_router(
         if not result.ok or result.value is None:
             _raise_http_from_error(result.error or AppError(ErrorCode.INTERNAL_ERROR, "Unknown application error"))
         return IonicSeriesResponseSchema(**result.value.to_mapping())
+
+    @router.post(
+        "/v1/outcar/export-tabular",
+        response_model=ExportTabularResponseSchema,
+        responses=error_responses,
+    )
+    def export_tabular(request: ExportTabularRequestSchema) -> ExportTabularResponseSchema:
+        try:
+            payload = validate_export_tabular_request(request.model_dump())
+        except Exception as exc:
+            _raise_http_from_error(normalize_error(exc))
+
+        result = export_tabular_use_case.execute(payload)
+        if not result.ok or result.value is None:
+            _raise_http_from_error(result.error or AppError(ErrorCode.INTERNAL_ERROR, "Unknown application error"))
+        return ExportTabularResponseSchema(**result.value.to_mapping())
 
     @router.post(
         "/v1/electronic/metadata",

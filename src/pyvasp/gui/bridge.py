@@ -11,6 +11,7 @@ from pyvasp.application.use_cases import (
     BuildConvergenceProfileUseCase,
     BuildIonicSeriesUseCase,
     DiagnoseOutcarUseCase,
+    ExportOutcarTabularUseCase,
     GenerateRelaxInputUseCase,
     ParseElectronicMetadataUseCase,
     SummarizeOutcarUseCase,
@@ -19,6 +20,7 @@ from pyvasp.core.payloads import (
     validate_convergence_profile_request,
     validate_diagnostics_request,
     validate_electronic_metadata_request,
+    validate_export_tabular_request,
     validate_generate_relax_input_request,
     validate_ionic_series_request,
     validate_summary_request,
@@ -49,6 +51,7 @@ class GuiBackendBridge:
         diagnostics_use_case: DiagnoseOutcarUseCase | None = None,
         profile_use_case: BuildConvergenceProfileUseCase | None = None,
         ionic_series_use_case: BuildIonicSeriesUseCase | None = None,
+        export_tabular_use_case: ExportOutcarTabularUseCase | None = None,
         electronic_use_case: ParseElectronicMetadataUseCase | None = None,
         relax_input_use_case: GenerateRelaxInputUseCase | None = None,
     ) -> None:
@@ -60,6 +63,10 @@ class GuiBackendBridge:
         self._diagnostics_use_case = diagnostics_use_case or DiagnoseOutcarUseCase(reader=outcar_parser)
         self._profile_use_case = profile_use_case or BuildConvergenceProfileUseCase(reader=outcar_parser)
         self._ionic_series_use_case = ionic_series_use_case or BuildIonicSeriesUseCase(reader=outcar_parser)
+        self._export_tabular_use_case = export_tabular_use_case or ExportOutcarTabularUseCase(
+            summary_reader=outcar_parser,
+            ionic_series_reader=outcar_parser,
+        )
         self._electronic_use_case = electronic_use_case or ParseElectronicMetadataUseCase(reader=ElectronicParser())
         self._relax_input_use_case = relax_input_use_case or GenerateRelaxInputUseCase(builder=RelaxInputGenerator())
 
@@ -137,6 +144,27 @@ class GuiBackendBridge:
             api_path="/v1/electronic/metadata",
             direct_call=self._call_direct_electronic_metadata,
             operation_label="electronic metadata",
+        )
+
+    def export_outcar_tabular(
+        self,
+        *,
+        outcar_path: str,
+        dataset: str = "ionic_series",
+        delimiter: str = ",",
+    ) -> dict:
+        """Export OUTCAR series data as CSV-ready tabular text."""
+
+        payload = {
+            "outcar_path": outcar_path,
+            "dataset": dataset,
+            "delimiter": delimiter,
+        }
+        return self._execute(
+            payload=payload,
+            api_path="/v1/outcar/export-tabular",
+            direct_call=self._call_direct_export_tabular,
+            operation_label="tabular export",
         )
 
     def generate_relax_input(
@@ -268,6 +296,16 @@ class GuiBackendBridge:
         result = self._relax_input_use_case.execute(canonical)
         if not result.ok or result.value is None:
             raise RuntimeError(_format_app_error(result.error, "Unknown direct relax input error"))
+        return result.value.to_mapping()
+
+    def _call_direct_export_tabular(self, payload: dict) -> dict:
+        try:
+            canonical = validate_export_tabular_request(payload)
+        except Exception as exc:
+            raise RuntimeError(_format_app_error(normalize_error(exc), "Invalid tabular export request")) from exc
+        result = self._export_tabular_use_case.execute(canonical)
+        if not result.ok or result.value is None:
+            raise RuntimeError(_format_app_error(result.error, "Unknown direct tabular export error"))
         return result.value.to_mapping()
 
     def _call_api(self, *, api_path: str, payload: dict) -> dict:

@@ -24,11 +24,13 @@ from pyvasp.core.models import (
 from pyvasp.core.payloads import (
     DiagnosticsResponsePayload,
     ElectronicMetadataResponsePayload,
+    ExportTabularResponsePayload,
     GenerateRelaxInputResponsePayload,
     IonicSeriesResponsePayload,
     SummaryResponsePayload,
     validate_diagnostics_request,
     validate_electronic_metadata_request,
+    validate_export_tabular_request,
     validate_generate_relax_input_request,
     validate_ionic_series_request,
     validate_summary_request,
@@ -100,6 +102,29 @@ def test_validate_generate_relax_input_request_bad_element() -> None:
 def test_validate_ionic_series_request_success() -> None:
     payload = validate_ionic_series_request({"outcar_path": str(FIXTURE)})
     assert payload.outcar_path == str(FIXTURE)
+
+
+def test_validate_export_tabular_request_success() -> None:
+    payload = validate_export_tabular_request(
+        {
+            "outcar_path": str(FIXTURE),
+            "dataset": "convergence_profile",
+            "delimiter": "tab",
+        }
+    )
+    assert payload.outcar_path == str(FIXTURE)
+    assert payload.dataset == "convergence_profile"
+    assert payload.delimiter == "\t"
+
+
+def test_validate_export_tabular_request_bad_dataset() -> None:
+    with pytest.raises(ValidationError):
+        validate_export_tabular_request(
+            {
+                "outcar_path": str(FIXTURE),
+                "dataset": "unknown",
+            }
+        )
 
 
 def test_summary_response_payload_hides_history_when_not_requested() -> None:
@@ -258,3 +283,21 @@ def test_ionic_series_response_payload() -> None:
     assert mapped["n_steps"] == 2
     assert mapped["points"][0]["delta_energy_ev"] is None
     assert mapped["points"][1]["relative_energy_ev"] == pytest.approx(0.0)
+
+
+def test_export_tabular_response_payload() -> None:
+    payload = ExportTabularResponsePayload(
+        source_path=str(FIXTURE),
+        dataset="ionic_series",
+        format="csv",
+        delimiter=",",
+        filename_hint="ionic_series.csv",
+        n_rows=2,
+        content="ionic_step,total_energy_ev\n1,-10.0\n",
+        warnings=("ok",),
+    )
+
+    mapped = payload.to_mapping()
+    assert mapped["dataset"] == "ionic_series"
+    assert mapped["filename_hint"] == "ionic_series.csv"
+    assert mapped["warnings"] == ["ok"]

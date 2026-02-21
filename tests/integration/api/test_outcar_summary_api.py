@@ -124,6 +124,38 @@ def test_api_ionic_series_success() -> None:
     assert body["points"][1]["external_pressure_kb"] == -1.23
 
 
+def test_api_export_tabular_success() -> None:
+    client = TestClient(create_app())
+    response = client.post(
+        "/v1/outcar/export-tabular",
+        json={
+            "outcar_path": str(FIXTURE_PHASE2),
+            "dataset": "ionic_series",
+            "delimiter": ",",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["dataset"] == "ionic_series"
+    assert body["format"] == "csv"
+    assert body["n_rows"] == 2
+    assert "external_pressure_kb" in body["content"]
+
+
+def test_api_export_tabular_bad_dataset() -> None:
+    client = TestClient(create_app())
+    response = client.post(
+        "/v1/outcar/export-tabular",
+        json={"outcar_path": str(FIXTURE_PHASE2), "dataset": "bad"},
+    )
+
+    assert response.status_code == 400
+    detail = response.json()["detail"]
+    assert detail["code"] == "VALIDATION_ERROR"
+    assert "dataset" in detail["message"]
+
+
 def test_api_electronic_metadata_success() -> None:
     client = TestClient(create_app())
     response = client.post(

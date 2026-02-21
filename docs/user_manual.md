@@ -11,6 +11,8 @@ Current capabilities:
   - per-step energy deltas and relative energies for plotting
 - Ionic series profile:
   - per-step energy, force, external pressure, and Fermi energy for visualization
+- Tabular export:
+  - CSV export of ionic-series or convergence-profile datasets for downstream plotting
 - Electronic metadata (VASPKIT-like):
   - band gap metadata from `EIGENVAL`
   - DOS metadata from `DOSCAR`
@@ -41,6 +43,7 @@ pyvasp-cli summary /absolute/path/to/OUTCAR --mode direct --include-history
 pyvasp-cli diagnostics /absolute/path/to/OUTCAR --mode direct --energy-tol 1e-4 --force-tol 0.02
 pyvasp-cli convergence-profile /absolute/path/to/OUTCAR --mode direct
 pyvasp-cli ionic-series /absolute/path/to/OUTCAR --mode direct
+pyvasp-cli export-tabular /absolute/path/to/OUTCAR --dataset ionic_series --delimiter comma --mode direct
 pyvasp-cli electronic-metadata --eigenval-path /absolute/path/to/EIGENVAL --doscar-path /absolute/path/to/DOSCAR --mode direct
 pyvasp-cli generate-relax-input /absolute/path/to/structure.json --mode direct --output-dir ./vasp_inputs
 ```
@@ -62,6 +65,7 @@ Endpoints:
 - `POST /v1/outcar/diagnostics`
 - `POST /v1/outcar/convergence-profile`
 - `POST /v1/outcar/ionic-series`
+- `POST /v1/outcar/export-tabular`
 - `POST /v1/electronic/metadata`
 - `POST /v1/input/relax-generate`
 

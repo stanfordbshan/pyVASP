@@ -51,6 +51,32 @@ def test_cli_ionic_series_direct_mode(capsys) -> None:
     assert payload["points"][1]["external_pressure_kb"] == -1.23
 
 
+def test_cli_export_tabular_direct_mode(tmp_path: Path, capsys) -> None:
+    output_file = tmp_path / "ionic_series.csv"
+    exit_code = main(
+        [
+            "export-tabular",
+            str(FIXTURE_PHASE2),
+            "--mode",
+            "direct",
+            "--dataset",
+            "ionic_series",
+            "--delimiter",
+            "comma",
+            "--output-file",
+            str(output_file),
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    payload = json.loads(captured.out)
+    assert payload["dataset"] == "ionic_series"
+    assert output_file.exists()
+    content = output_file.read_text(encoding="utf-8")
+    assert "external_pressure_kb" in content
+
+
 def test_cli_electronic_metadata_direct_mode(capsys) -> None:
     exit_code = main(
         [

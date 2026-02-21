@@ -9,6 +9,7 @@ from pyvasp.application.use_cases import (
     BuildConvergenceProfileUseCase,
     BuildIonicSeriesUseCase,
     DiagnoseOutcarUseCase,
+    ExportOutcarTabularUseCase,
     GenerateRelaxInputUseCase,
     ParseElectronicMetadataUseCase,
     SummarizeOutcarUseCase,
@@ -26,6 +27,10 @@ def create_app() -> FastAPI:
     diagnostics_use_case = DiagnoseOutcarUseCase(reader=outcar_parser)
     profile_use_case = BuildConvergenceProfileUseCase(reader=outcar_parser)
     ionic_series_use_case = BuildIonicSeriesUseCase(reader=outcar_parser)
+    export_tabular_use_case = ExportOutcarTabularUseCase(
+        summary_reader=outcar_parser,
+        ionic_series_reader=outcar_parser,
+    )
     electronic_use_case = ParseElectronicMetadataUseCase(reader=ElectronicParser())
     relax_input_use_case = GenerateRelaxInputUseCase(builder=RelaxInputGenerator())
 
@@ -40,6 +45,7 @@ def create_app() -> FastAPI:
             diagnostics_use_case,
             profile_use_case,
             ionic_series_use_case,
+            export_tabular_use_case,
             electronic_use_case,
             relax_input_use_case,
         )

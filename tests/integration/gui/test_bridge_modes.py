@@ -42,6 +42,14 @@ def test_bridge_direct_mode_profile_electronic_and_input_generation() -> None:
     assert ionic_series["n_steps"] == 2
     assert ionic_series["points"][1]["external_pressure_kb"] == -1.23
 
+    exported = bridge.export_outcar_tabular(
+        outcar_path=str(FIXTURE_PHASE2),
+        dataset="ionic_series",
+        delimiter=",",
+    )
+    assert exported["n_rows"] == 2
+    assert "external_pressure_kb" in exported["content"]
+
     electronic = bridge.parse_electronic_metadata(
         eigenval_path=str(EIGENVAL_FIXTURE),
         doscar_path=str(DOSCAR_FIXTURE),
@@ -122,6 +130,13 @@ def test_gui_host_ui_profile_electronic_and_input_endpoints() -> None:
     ionic_series = client.post("/ui/ionic-series", json={"outcar_path": str(FIXTURE_PHASE2)})
     assert ionic_series.status_code == 200
     assert ionic_series.json()["n_steps"] == 2
+
+    exported = client.post(
+        "/ui/export-tabular",
+        json={"outcar_path": str(FIXTURE_PHASE2), "dataset": "ionic_series", "delimiter": ","},
+    )
+    assert exported.status_code == 200
+    assert exported.json()["n_rows"] == 2
 
     electronic = client.post(
         "/ui/electronic-metadata",

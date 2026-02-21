@@ -6,6 +6,7 @@ from pyvasp.application.use_cases import (
     BuildConvergenceProfileUseCase,
     BuildIonicSeriesUseCase,
     DiagnoseOutcarUseCase,
+    ExportOutcarTabularUseCase,
     GenerateRelaxInputUseCase,
     ParseElectronicMetadataUseCase,
     SummarizeOutcarUseCase,
@@ -30,6 +31,7 @@ from pyvasp.core.payloads import (
     ConvergenceProfileRequestPayload,
     DiagnosticsRequestPayload,
     ElectronicMetadataRequestPayload,
+    ExportTabularRequestPayload,
     GenerateRelaxInputRequestPayload,
     IonicSeriesRequestPayload,
     SummaryRequestPayload,
@@ -261,6 +263,50 @@ def test_ionic_series_use_case_success() -> None:
 def test_ionic_series_use_case_failure() -> None:
     use_case = BuildIonicSeriesUseCase(reader=BrokenIonicSeriesReader())
     request = IonicSeriesRequestPayload(outcar_path=str(FIXTURE))
+
+    result = use_case.execute(request)
+    assert result.ok is False
+    assert result.error is not None
+    assert result.error.code == ErrorCode.PARSE_ERROR
+    assert result.error.message == "ionic series failed"
+
+
+def test_export_tabular_use_case_ionic_series_success() -> None:
+    use_case = ExportOutcarTabularUseCase(
+        summary_reader=WorkingSummaryReader(),
+        ionic_series_reader=WorkingIonicSeriesReader(),
+    )
+    request = ExportTabularRequestPayload(outcar_path=str(FIXTURE), dataset="ionic_series", delimiter=",")
+
+    result = use_case.execute(request)
+    assert result.ok is True
+    assert result.value is not None
+    assert result.value.dataset == "ionic_series"
+    assert result.value.n_rows == 2
+    assert "external_pressure_kb" in result.value.content
+
+
+def test_export_tabular_use_case_profile_success() -> None:
+    use_case = ExportOutcarTabularUseCase(
+        summary_reader=WorkingSummaryReader(),
+        ionic_series_reader=WorkingIonicSeriesReader(),
+    )
+    request = ExportTabularRequestPayload(outcar_path=str(FIXTURE), dataset="convergence_profile", delimiter=",")
+
+    result = use_case.execute(request)
+    assert result.ok is True
+    assert result.value is not None
+    assert result.value.dataset == "convergence_profile"
+    assert result.value.n_rows == 2
+    assert "relative_energy_ev" in result.value.content
+
+
+def test_export_tabular_use_case_failure() -> None:
+    use_case = ExportOutcarTabularUseCase(
+        summary_reader=BrokenSummaryReader(),
+        ionic_series_reader=BrokenIonicSeriesReader(),
+    )
+    request = ExportTabularRequestPayload(outcar_path=str(FIXTURE), dataset="ionic_series", delimiter=",")
 
     result = use_case.execute(request)
     assert result.ok is False

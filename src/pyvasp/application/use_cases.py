@@ -19,6 +19,8 @@ from pyvasp.core.payloads import (
     DiagnosticsResponsePayload,
     ElectronicMetadataRequestPayload,
     ElectronicMetadataResponsePayload,
+    ExportTabularRequestPayload,
+    ExportTabularResponsePayload,
     GenerateRelaxInputRequestPayload,
     GenerateRelaxInputResponsePayload,
     IonicSeriesRequestPayload,
@@ -27,6 +29,7 @@ from pyvasp.core.payloads import (
     SummaryResponsePayload,
 )
 from pyvasp.core.result import AppResult
+from pyvasp.core.tabular import build_csv_text
 
 
 class SummarizeOutcarUseCase:
@@ -115,6 +118,99 @@ class BuildIonicSeriesUseCase:
         try:
             series = self._reader.parse_ionic_series_file(request.validated_path())
             return AppResult.success(IonicSeriesResponsePayload.from_series(series))
+        except (ValidationError, ParseError, OSError) as exc:
+            return AppResult.failure(exc)
+
+
+class ExportOutcarTabularUseCase:
+    """Export chart-ready OUTCAR datasets as transport-neutral tabular text."""
+
+    def __init__(
+        self,
+        *,
+        summary_reader: OutcarSummaryReader,
+        ionic_series_reader: OutcarIonicSeriesReader,
+    ) -> None:
+        self._summary_reader = summary_reader
+        self._ionic_series_reader = ionic_series_reader
+
+    def execute(self, request: ExportTabularRequestPayload) -> AppResult[ExportTabularResponsePayload]:
+        """Export selected OUTCAR dataset (`convergence_profile` or `ionic_series`) as CSV text."""
+
+        try:
+            if request.dataset == "convergence_profile":
+                summary = self._summary_reader.parse_file(request.validated_path())
+                profile = build_convergence_profile(summary)
+                rows = [
+                    [
+                        point.ionic_step,
+                        point.total_energy_ev,
+                        point.delta_energy_ev,
+                        point.relative_energy_ev,
+                    ]
+                    for point in profile.points
+                ]
+                csv_text = build_csv_text(
+                    headers=(
+                        "ionic_step",
+                        "total_energy_ev",
+                        "delta_energy_ev",
+                        "relative_energy_ev",
+                    ),
+                    rows=rows,
+                    delimiter=request.delimiter,
+                )
+                return AppResult.success(
+                    ExportTabularResponsePayload(
+                        source_path=summary.source_path,
+                        dataset=request.dataset,
+                        format="csv",
+                        delimiter=request.delimiter,
+                        filename_hint="convergence_profile.csv",
+                        n_rows=len(rows),
+                        content=csv_text,
+                        warnings=summary.warnings,
+                    )
+                )
+
+            series = self._ionic_series_reader.parse_ionic_series_file(request.validated_path())
+            rows = [
+                [
+                    point.ionic_step,
+                    point.total_energy_ev,
+                    point.delta_energy_ev,
+                    point.relative_energy_ev,
+                    point.max_force_ev_per_a,
+                    point.external_pressure_kb,
+                    point.fermi_energy_ev,
+                ]
+                for point in series.points
+            ]
+            csv_text = build_csv_text(
+                headers=(
+                    "ionic_step",
+                    "total_energy_ev",
+                    "delta_energy_ev",
+                    "relative_energy_ev",
+                    "max_force_ev_per_a",
+                    "external_pressure_kb",
+                    "fermi_energy_ev",
+                ),
+                rows=rows,
+                delimiter=request.delimiter,
+            )
+            return AppResult.success(
+                ExportTabularResponsePayload(
+                    source_path=series.source_path,
+                    dataset=request.dataset,
+                    format="csv",
+                    delimiter=request.delimiter,
+                    filename_hint="ionic_series.csv",
+                    n_rows=len(rows),
+                    content=csv_text,
+                    warnings=series.warnings,
+                )
+            )
         except (ValidationError, ParseError, OSError) as exc:
             return AppResult.failure(exc)
 

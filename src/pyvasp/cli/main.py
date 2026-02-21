@@ -55,6 +55,26 @@ def build_parser() -> argparse.ArgumentParser:
     ionic_series.add_argument("outcar_path", help="Path to OUTCAR file")
     _add_shared_backend_args(ionic_series)
 
+    export_tabular = subparsers.add_parser("export-tabular", help="Export OUTCAR data as CSV text")
+    export_tabular.add_argument("outcar_path", help="Path to OUTCAR file")
+    export_tabular.add_argument(
+        "--dataset",
+        default="ionic_series",
+        choices=["ionic_series", "convergence_profile"],
+        help="Dataset to export",
+    )
+    export_tabular.add_argument(
+        "--delimiter",
+        default="comma",
+        choices=["comma", "semicolon", "tab"],
+        help="CSV delimiter",
+    )
+    export_tabular.add_argument(
+        "--output-file",
+        help="Optional path to write exported tabular text",
+    )
+    _add_shared_backend_args(export_tabular)
+
     electronic = subparsers.add_parser(
         "electronic-metadata",
         help="Parse VASPKIT-like band gap/DOS metadata from EIGENVAL and DOSCAR",
@@ -112,6 +132,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "ionic-series":
         return _run_ionic_series(bridge, args)
 
+    if args.command == "export-tabular":
+        return _run_export_tabular(bridge, args)
+
     if args.command == "electronic-metadata":
         return _run_electronic_metadata(bridge, args)
 
@@ -165,6 +188,34 @@ def _run_convergence_profile(bridge: GuiBackendBridge, args: argparse.Namespace)
 def _run_ionic_series(bridge: GuiBackendBridge, args: argparse.Namespace) -> int:
     try:
         data = bridge.build_ionic_series(outcar_path=args.outcar_path)
+    except Exception as exc:
+        print(json.dumps({"error": str(exc)}), file=sys.stderr)
+        return 1
+
+    print(json.dumps(data, indent=2))
+    return 0
+
+
+def _run_export_tabular(bridge: GuiBackendBridge, args: argparse.Namespace) -> int:
+    delimiter_lookup = {
+        "comma": ",",
+        "semicolon": ";",
+        "tab": "\t",
+    }
+    delimiter = delimiter_lookup[args.delimiter]
+
+    try:
+        data = bridge.export_outcar_tabular(
+            outcar_path=args.outcar_path,
+            dataset=args.dataset,
+            delimiter=delimiter,
+        )
+
+        if args.output_file:
+            output_path = Path(args.output_file).expanduser().resolve()
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.write_text(data["content"], encoding="utf-8")
+            data["written_file"] = str(output_path)
     except Exception as exc:
         print(json.dumps({"error": str(exc)}), file=sys.stderr)
         return 1

@@ -1,6 +1,6 @@
 # pyVASP Developer Manual
 
-## 1. File Tree (Phase 4.2 + Visualization Series)
+## 1. File Tree (Phase 4.3 + Tabular Export)
 
 ```text
 pyVASP/
@@ -16,6 +16,7 @@ pyVASP/
         models.py
         payloads.py
         result.py
+        tabular.py
         validators.py
       application/
         __init__.py
@@ -60,6 +61,7 @@ pyVASP/
         test_analysis.py
         test_errors.py
         test_payloads.py
+        test_tabular.py
       application/
         test_use_cases.py
       outcar/
@@ -94,6 +96,7 @@ pyVASP/
   - `DiagnoseOutcarUseCase`
   - `BuildConvergenceProfileUseCase`
   - `BuildIonicSeriesUseCase`
+  - `ExportOutcarTabularUseCase`
   - `ParseElectronicMetadataUseCase`
   - `GenerateRelaxInputUseCase`
 - Use-cases return `AppResult` with structured `AppError` failures; no adapter-specific error format.
@@ -125,6 +128,7 @@ All adapter entry points call core validators first:
 - diagnostics
 - convergence profile
 - ionic series
+- outcar tabular export
 - electronic metadata
 - relaxation input generation
 

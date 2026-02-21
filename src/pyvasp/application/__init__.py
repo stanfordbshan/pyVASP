@@ -4,6 +4,7 @@ from pyvasp.application.use_cases import (
     BuildConvergenceProfileUseCase,
     BuildIonicSeriesUseCase,
     DiagnoseOutcarUseCase,
+    ExportOutcarTabularUseCase,
     GenerateRelaxInputUseCase,
     ParseElectronicMetadataUseCase,
     SummarizeOutcarUseCase,
@@ -14,6 +15,7 @@ __all__ = [
     "DiagnoseOutcarUseCase",
     "BuildConvergenceProfileUseCase",
     "BuildIonicSeriesUseCase",
+    "ExportOutcarTabularUseCase",
     "ParseElectronicMetadataUseCase",
     "GenerateRelaxInputUseCase",
 ]

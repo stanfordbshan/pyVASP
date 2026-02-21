@@ -18,8 +18,22 @@
           <option value="diagnostics">Diagnostics</option>
           <option value="convergence_profile">Convergence Profile</option>
           <option value="ionic_series">Ionic Series</option>
+          <option value="export_tabular">Export Tabular (CSV)</option>
           <option value="electronic_metadata">Electronic Metadata</option>
           <option value="generate_relax_input">Generate Relax Input</option>
+        </select>
+
+        <label for="export_dataset">Export Dataset</label>
+        <select id="export_dataset" name="export_dataset">
+          <option value="ionic_series">Ionic Series</option>
+          <option value="convergence_profile">Convergence Profile</option>
+        </select>
+
+        <label for="export_delimiter">Export Delimiter</label>
+        <select id="export_delimiter" name="export_delimiter">
+          <option value=",">Comma (,)</option>
+          <option value=";">Semicolon (;)</option>
+          <option value="\t">Tab</option>
         </select>
 
         <label for="outcar_path">OUTCAR Path</label>

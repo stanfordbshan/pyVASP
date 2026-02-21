@@ -42,6 +42,14 @@ class UiIonicSeriesRequest(BaseModel):
     outcar_path: str = Field(..., description="Path to OUTCAR")
 
 
+class UiExportTabularRequest(BaseModel):
+    """GUI tabular-export request schema."""
+
+    outcar_path: str = Field(..., description="Path to OUTCAR")
+    dataset: str = Field(default="ionic_series")
+    delimiter: str = Field(default=",")
+
+
 class UiElectronicMetadataRequest(BaseModel):
     """GUI electronic metadata request schema."""
 
@@ -138,6 +146,17 @@ def create_gui_app(
     def ui_ionic_series(request: UiIonicSeriesRequest) -> dict:
         try:
             return app.state.bridge.build_ionic_series(outcar_path=request.outcar_path)
+        except Exception as exc:
+            _raise_ui_http_error(exc)
+
+    @app.post("/ui/export-tabular")
+    def ui_export_tabular(request: UiExportTabularRequest) -> dict:
+        try:
+            return app.state.bridge.export_outcar_tabular(
+                outcar_path=request.outcar_path,
+                dataset=request.dataset,
+                delimiter=request.delimiter,
+            )
         except Exception as exc:
             _raise_ui_http_error(exc)
 
