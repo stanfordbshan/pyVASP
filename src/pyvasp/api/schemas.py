@@ -48,6 +48,15 @@ class DiscoverOutcarRunsRequestSchema(BaseModel):
     max_runs: int = Field(default=200, description="Maximum number of discovered runs returned")
 
 
+class RunReportRequestSchema(BaseModel):
+    """Request payload for consolidated run-report endpoint."""
+
+    run_dir: str = Field(..., description="VASP run directory containing OUTCAR and optional EIGENVAL/DOSCAR")
+    energy_tolerance_ev: float = Field(default=1e-4, description="Convergence threshold for |ΔE| in eV")
+    force_tolerance_ev_per_a: float = Field(default=0.02, description="Convergence threshold for max force")
+    include_electronic: bool = Field(default=True, description="Parse electronic metadata when files are available")
+
+
 class DiagnosticsRequestSchema(BaseModel):
     """Request payload for OUTCAR diagnostics endpoint."""
 
@@ -336,6 +345,22 @@ class BatchInsightsResponseSchema(BaseModel):
     mean_max_force_ev_per_a: float | None
     top_lowest_energy: list[BatchInsightsTopRunSchema]
     rows: list[BatchInsightsRowSchema]
+
+
+class RunReportResponseSchema(BaseModel):
+    """Response schema for consolidated run report endpoint."""
+
+    run_dir: str
+    outcar_path: str
+    eigenval_path: str | None
+    doscar_path: str | None
+    summary: SummaryResponseSchema
+    diagnostics: DiagnosticsResponseSchema
+    electronic_metadata: ElectronicMetadataResponseSchema | None
+    is_converged: bool | None
+    recommended_status: str
+    suggested_actions: list[str]
+    warnings: list[str]
 
 
 class DiscoverOutcarRunsResponseSchema(BaseModel):

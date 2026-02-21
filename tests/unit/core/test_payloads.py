@@ -39,6 +39,7 @@ from pyvasp.core.payloads import (
     ExportTabularResponsePayload,
     GenerateRelaxInputResponsePayload,
     IonicSeriesResponsePayload,
+    RunReportResponsePayload,
     SummaryResponsePayload,
     validate_batch_diagnostics_request,
     validate_batch_insights_request,
@@ -50,6 +51,7 @@ from pyvasp.core.payloads import (
     validate_export_tabular_request,
     validate_generate_relax_input_request,
     validate_ionic_series_request,
+    validate_run_report_request,
     validate_summary_request,
 )
 
@@ -153,6 +155,24 @@ def test_validate_discover_outcar_runs_request_bad_max_runs() -> None:
                 "max_runs": 0,
             }
         )
+
+
+def test_validate_run_report_request_success() -> None:
+    payload = validate_run_report_request(
+        {
+            "run_dir": str(DISCOVERY_ROOT_FIXTURE / "run_a"),
+            "energy_tolerance_ev": 1e-4,
+            "force_tolerance_ev_per_a": 0.02,
+            "include_electronic": False,
+        }
+    )
+    assert payload.run_dir.endswith("run_a")
+    assert payload.include_electronic is False
+
+
+def test_validate_run_report_request_requires_directory() -> None:
+    with pytest.raises(ValidationError):
+        validate_run_report_request({"run_dir": str(FIXTURE)})
 
 
 def test_validate_diagnostics_request_rejects_non_positive_tolerances() -> None:
@@ -612,3 +632,26 @@ def test_batch_insights_response_payload_mapping() -> None:
     assert mapped["top_lowest_energy"][0]["rank"] == 1
     assert mapped["rows"][0]["warnings"] == ["ok"]
     assert mapped["rows"][1]["error"]["code"] == "FILE_NOT_FOUND"
+
+
+def test_run_report_response_payload_mapping() -> None:
+    payload = RunReportResponsePayload(
+        run_dir=str(DISCOVERY_ROOT_FIXTURE / "run_a"),
+        outcar_path=str(FIXTURE),
+        eigenval_path=None,
+        doscar_path=None,
+        summary={"source_path": str(FIXTURE), "final_total_energy_ev": -10.5},
+        diagnostics={"source_path": str(FIXTURE), "convergence": {"is_converged": True}},
+        electronic_metadata=None,
+        is_converged=True,
+        recommended_status="ready",
+        suggested_actions=("Run is converged; suitable for downstream screening/comparison",),
+        warnings=("ok",),
+    )
+
+    mapped = payload.to_mapping()
+    assert mapped["run_dir"].endswith("run_a")
+    assert mapped["is_converged"] is True
+    assert mapped["recommended_status"] == "ready"
+    assert mapped["suggested_actions"][0].startswith("Run is converged")
+    assert mapped["warnings"] == ["ok"]

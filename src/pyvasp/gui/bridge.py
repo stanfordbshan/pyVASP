@@ -14,6 +14,7 @@ from pyvasp.application.use_cases import (
     BuildConvergenceProfileUseCase,
     BuildDosProfileUseCase,
     BuildIonicSeriesUseCase,
+    BuildRunReportUseCase,
     DiagnoseOutcarUseCase,
     DiscoverOutcarRunsUseCase,
     ExportOutcarTabularUseCase,
@@ -33,6 +34,7 @@ from pyvasp.core.payloads import (
     validate_export_tabular_request,
     validate_generate_relax_input_request,
     validate_ionic_series_request,
+    validate_run_report_request,
     validate_summary_request,
 )
 from pyvasp.core.errors import AppError, normalize_error
@@ -62,6 +64,7 @@ class GuiBackendBridge:
         batch_summary_use_case: BatchSummarizeOutcarUseCase | None = None,
         batch_diagnostics_use_case: BatchDiagnoseOutcarUseCase | None = None,
         batch_insights_use_case: BuildBatchInsightsUseCase | None = None,
+        run_report_use_case: BuildRunReportUseCase | None = None,
         diagnostics_use_case: DiagnoseOutcarUseCase | None = None,
         profile_use_case: BuildConvergenceProfileUseCase | None = None,
         ionic_series_use_case: BuildIonicSeriesUseCase | None = None,
@@ -82,6 +85,10 @@ class GuiBackendBridge:
             batch_diagnostics_use_case or BatchDiagnoseOutcarUseCase(reader=outcar_parser)
         )
         self._batch_insights_use_case = batch_insights_use_case or BuildBatchInsightsUseCase(reader=outcar_parser)
+        self._run_report_use_case = run_report_use_case or BuildRunReportUseCase(
+            outcar_reader=outcar_parser,
+            electronic_reader=electronic_parser,
+        )
         self._diagnostics_use_case = diagnostics_use_case or DiagnoseOutcarUseCase(reader=outcar_parser)
         self._profile_use_case = profile_use_case or BuildConvergenceProfileUseCase(reader=outcar_parser)
         self._ionic_series_use_case = ionic_series_use_case or BuildIonicSeriesUseCase(reader=outcar_parser)
@@ -214,6 +221,29 @@ class GuiBackendBridge:
             api_path="/v1/outcar/batch-insights",
             direct_call=self._call_direct_batch_insights,
             operation_label="batch insights",
+        )
+
+    def build_run_report(
+        self,
+        *,
+        run_dir: str,
+        energy_tolerance_ev: float = 1e-4,
+        force_tolerance_ev_per_a: float = 0.02,
+        include_electronic: bool = True,
+    ) -> dict:
+        """Build consolidated run report from one VASP output folder."""
+
+        payload = {
+            "run_dir": run_dir,
+            "energy_tolerance_ev": energy_tolerance_ev,
+            "force_tolerance_ev_per_a": force_tolerance_ev_per_a,
+            "include_electronic": include_electronic,
+        }
+        return self._execute(
+            payload=payload,
+            api_path="/v1/run/report",
+            direct_call=self._call_direct_run_report,
+            operation_label="run report",
         )
 
     def build_convergence_profile(self, *, outcar_path: str) -> dict:
@@ -428,6 +458,16 @@ class GuiBackendBridge:
         result = self._batch_insights_use_case.execute(canonical)
         if not result.ok or result.value is None:
             raise RuntimeError(_format_app_error(result.error, "Unknown direct batch insights error"))
+        return result.value.to_mapping()
+
+    def _call_direct_run_report(self, payload: dict) -> dict:
+        try:
+            canonical = validate_run_report_request(payload)
+        except Exception as exc:
+            raise RuntimeError(_format_app_error(normalize_error(exc), "Invalid run report request")) from exc
+        result = self._run_report_use_case.execute(canonical)
+        if not result.ok or result.value is None:
+            raise RuntimeError(_format_app_error(result.error, "Unknown direct run report error"))
         return result.value.to_mapping()
 
     def _call_direct_profile(self, payload: dict) -> dict:

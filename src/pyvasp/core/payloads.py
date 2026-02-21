@@ -188,6 +188,42 @@ class DiscoverOutcarRunsRequestPayload:
 
 
 @dataclass(frozen=True)
+class RunReportRequestPayload:
+    """Canonical request payload for consolidated run-report generation."""
+
+    run_dir: str
+    energy_tolerance_ev: float = 1e-4
+    force_tolerance_ev_per_a: float = 0.02
+    include_electronic: bool = True
+
+    @classmethod
+    def from_mapping(cls, raw: dict[str, Any]) -> "RunReportRequestPayload":
+        run_dir_value = raw.get("run_dir")
+        resolved_run_dir = validate_directory_path(
+            str(run_dir_value) if run_dir_value is not None else "",
+            field_name="run_dir",
+            label="Run directory",
+        )
+
+        return cls(
+            run_dir=str(resolved_run_dir),
+            energy_tolerance_ev=_coerce_positive_float(raw.get("energy_tolerance_ev", 1e-4), "energy_tolerance_ev"),
+            force_tolerance_ev_per_a=_coerce_positive_float(
+                raw.get("force_tolerance_ev_per_a", 0.02),
+                "force_tolerance_ev_per_a",
+            ),
+            include_electronic=bool(raw.get("include_electronic", True)),
+        )
+
+    def validated_run_dir(self) -> Path:
+        return validate_directory_path(
+            self.run_dir,
+            field_name="run_dir",
+            label="Run directory",
+        )
+
+
+@dataclass(frozen=True)
 class DiagnosticsRequestPayload:
     """Canonical request payload for OUTCAR diagnostics."""
 
@@ -720,6 +756,38 @@ class BatchInsightsResponsePayload:
 
 
 @dataclass(frozen=True)
+class RunReportResponsePayload:
+    """Canonical consolidated run-report response consumed by adapters."""
+
+    run_dir: str
+    outcar_path: str
+    eigenval_path: str | None
+    doscar_path: str | None
+    summary: dict[str, Any]
+    diagnostics: dict[str, Any]
+    electronic_metadata: dict[str, Any] | None
+    is_converged: bool | None
+    recommended_status: str
+    suggested_actions: tuple[str, ...]
+    warnings: tuple[str, ...]
+
+    def to_mapping(self) -> dict[str, Any]:
+        return {
+            "run_dir": self.run_dir,
+            "outcar_path": self.outcar_path,
+            "eigenval_path": self.eigenval_path,
+            "doscar_path": self.doscar_path,
+            "summary": dict(self.summary),
+            "diagnostics": dict(self.diagnostics),
+            "electronic_metadata": None if self.electronic_metadata is None else dict(self.electronic_metadata),
+            "is_converged": self.is_converged,
+            "recommended_status": self.recommended_status,
+            "suggested_actions": list(self.suggested_actions),
+            "warnings": list(self.warnings),
+        }
+
+
+@dataclass(frozen=True)
 class DiagnosticsResponsePayload:
     """Canonical diagnostics response consumed by API/GUI/CLI adapters."""
 
@@ -1009,6 +1077,17 @@ def validate_discover_outcar_runs_request(raw: dict[str, Any]) -> DiscoverOutcar
 
     try:
         return DiscoverOutcarRunsRequestPayload.from_mapping(raw)
+    except ValidationError:
+        raise
+    except Exception as exc:  # pragma: no cover - defensive normalization
+        raise ValidationError(str(exc)) from exc
+
+
+def validate_run_report_request(raw: dict[str, Any]) -> RunReportRequestPayload:
+    """Map arbitrary adapter payload into canonical run-report request object."""
+
+    try:
+        return RunReportRequestPayload.from_mapping(raw)
     except ValidationError:
         raise
     except Exception as exc:  # pragma: no cover - defensive normalization

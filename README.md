@@ -2,7 +2,7 @@
 
 pyVASP is a layered Python toolkit for VASP input generation, post-processing, and visualization workflows.
 
-Phase 1-7 capabilities now include:
+Phase 1-8 capabilities now include:
 - OUTCAR summary and diagnostics (energy/force/pressure/stress/magnetization/convergence)
 - batch OUTCAR summary for high-throughput screening:
   - mixed success/error rows with per-item structured error payloads
@@ -11,6 +11,9 @@ Phase 1-7 capabilities now include:
 - batch screening insights:
   - aggregate convergence and energy/force statistics across runs
   - ranked shortlist of lowest-energy candidates (`top_n`)
+- consolidated run report:
+  - folder-first one-shot report (`OUTCAR` required; `EIGENVAL`/`DOSCAR` optional)
+  - combines summary, diagnostics, optional electronic metadata, and suggested next actions
 - root-folder run discovery for batch workflows:
   - scan a parent folder for `OUTCAR` files (recursive or one-level)
   - return discovered run directories and optional truncation warnings
@@ -67,6 +70,7 @@ pyvasp-cli discover-runs /absolute/path/to/run_root --mode direct --max-runs 400
 pyvasp-cli batch-summary /path/A/OUTCAR /path/B/OUTCAR --mode direct
 pyvasp-cli batch-diagnostics /path/A/OUTCAR /path/B/OUTCAR --mode direct --energy-tol 1e-4 --force-tol 0.02
 pyvasp-cli batch-insights /path/A/OUTCAR /path/B/OUTCAR --mode direct --energy-tol 1e-4 --force-tol 0.02 --top-n 5
+pyvasp-cli run-report /path/to/vasp_run --mode direct --energy-tol 1e-4 --force-tol 0.02 --include-electronic
 pyvasp-cli diagnostics /absolute/path/to/OUTCAR --mode direct --energy-tol 1e-4 --force-tol 0.02
 pyvasp-cli convergence-profile /absolute/path/to/OUTCAR --mode direct
 pyvasp-cli ionic-series /absolute/path/to/OUTCAR --mode direct
@@ -94,6 +98,7 @@ Endpoints:
 - `POST /v1/outcar/batch-summary`
 - `POST /v1/outcar/batch-diagnostics`
 - `POST /v1/outcar/batch-insights`
+- `POST /v1/run/report`
 - `POST /v1/outcar/diagnostics`
 - `POST /v1/outcar/convergence-profile`
 - `POST /v1/outcar/ionic-series`
@@ -139,6 +144,7 @@ GUI primary UX:
 - inspect outputs in both a rendered analysis view and a raw JSON view
 - in `Batch Screening`, use `Batch Root Folder` + `Discover Runs From Root` to auto-populate batch folders
 - in `Batch Screening`, use `Batch Insights` to get aggregate screening metrics + ranked low-energy runs
+- in `Post-processing`, use `Run Report` for a one-shot folder-level diagnostic/electronic readiness summary
 
 Runtime env vars:
 - `PYVASP_UI_MODE=direct|api|auto`

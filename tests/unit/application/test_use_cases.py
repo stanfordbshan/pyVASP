@@ -9,6 +9,7 @@ from pyvasp.application.use_cases import (
     BuildConvergenceProfileUseCase,
     BuildDosProfileUseCase,
     BuildIonicSeriesUseCase,
+    BuildRunReportUseCase,
     DiagnoseOutcarUseCase,
     DiscoverOutcarRunsUseCase,
     ExportOutcarTabularUseCase,
@@ -46,6 +47,7 @@ from pyvasp.core.payloads import (
     ExportTabularRequestPayload,
     GenerateRelaxInputRequestPayload,
     IonicSeriesRequestPayload,
+    RunReportRequestPayload,
     SummaryRequestPayload,
 )
 
@@ -404,6 +406,67 @@ def test_batch_insights_use_case_fail_fast_stops_early() -> None:
     assert result.value.success_count == 0
     assert result.value.error_count == 1
     assert result.value.top_lowest_energy == ()
+
+
+def test_run_report_use_case_success_with_electronic(tmp_path: Path) -> None:
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    (run_dir / "OUTCAR").write_text("sample", encoding="utf-8")
+    (run_dir / "EIGENVAL").write_text("sample", encoding="utf-8")
+    (run_dir / "DOSCAR").write_text("sample", encoding="utf-8")
+
+    use_case = BuildRunReportUseCase(
+        outcar_reader=WorkingObservablesReader(),
+        electronic_reader=WorkingElectronicReader(),
+    )
+    request = RunReportRequestPayload(
+        run_dir=str(run_dir),
+        energy_tolerance_ev=1e-4,
+        force_tolerance_ev_per_a=0.02,
+        include_electronic=True,
+    )
+
+    result = use_case.execute(request)
+    assert result.ok is True
+    assert result.value is not None
+    assert result.value.run_dir == str(run_dir.resolve())
+    assert result.value.electronic_metadata is not None
+    assert result.value.is_converged is True
+    assert result.value.recommended_status == "ready"
+
+
+def test_run_report_use_case_missing_outcar_fails(tmp_path: Path) -> None:
+    run_dir = tmp_path / "run_missing_outcar"
+    run_dir.mkdir()
+
+    use_case = BuildRunReportUseCase(
+        outcar_reader=WorkingObservablesReader(),
+        electronic_reader=WorkingElectronicReader(),
+    )
+    request = RunReportRequestPayload(run_dir=str(run_dir), include_electronic=True)
+
+    result = use_case.execute(request)
+    assert result.ok is False
+    assert result.error is not None
+    assert result.error.code == ErrorCode.FILE_NOT_FOUND
+
+
+def test_run_report_use_case_missing_electronic_files_warns(tmp_path: Path) -> None:
+    run_dir = tmp_path / "run_no_electronic"
+    run_dir.mkdir()
+    (run_dir / "OUTCAR").write_text("sample", encoding="utf-8")
+
+    use_case = BuildRunReportUseCase(
+        outcar_reader=WorkingObservablesReader(),
+        electronic_reader=WorkingElectronicReader(),
+    )
+    request = RunReportRequestPayload(run_dir=str(run_dir), include_electronic=True)
+
+    result = use_case.execute(request)
+    assert result.ok is True
+    assert result.value is not None
+    assert result.value.electronic_metadata is None
+    assert any("electronic metadata section skipped" in warning for warning in result.value.warnings)
 
 
 def test_diagnostics_use_case_success() -> None:

@@ -1,6 +1,6 @@
 # pyVASP Developer Manual
 
-## 1. File Tree (Phase 7 + Batch Insights Workflow)
+## 1. File Tree (Phase 8 + Consolidated Run Report Workflow)
 
 ```text
 pyVASP/
@@ -101,6 +101,7 @@ pyVASP/
   - `DiscoverOutcarRunsUseCase`
   - `BatchDiagnoseOutcarUseCase`
   - `BuildBatchInsightsUseCase`
+  - `BuildRunReportUseCase`
   - `DiagnoseOutcarUseCase`
   - `BuildConvergenceProfileUseCase`
   - `BuildIonicSeriesUseCase`
@@ -138,6 +139,7 @@ All adapter entry points call core validators first:
 - batch summary
 - batch diagnostics
 - batch insights
+- run report
 - diagnostics
 - convergence profile
 - ionic series

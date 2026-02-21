@@ -30,6 +30,8 @@ from pyvasp.api.schemas import (
     GenerateRelaxInputResponseSchema,
     IonicSeriesRequestSchema,
     IonicSeriesResponseSchema,
+    RunReportRequestSchema,
+    RunReportResponseSchema,
     SummaryRequestSchema,
     SummaryResponseSchema,
 )
@@ -40,6 +42,7 @@ from pyvasp.application.use_cases import (
     BuildConvergenceProfileUseCase,
     BuildDosProfileUseCase,
     BuildIonicSeriesUseCase,
+    BuildRunReportUseCase,
     DiscoverOutcarRunsUseCase,
     DiagnoseOutcarUseCase,
     ExportOutcarTabularUseCase,
@@ -60,6 +63,7 @@ from pyvasp.core.payloads import (
     validate_export_tabular_request,
     validate_generate_relax_input_request,
     validate_ionic_series_request,
+    validate_run_report_request,
     validate_summary_request,
 )
 
@@ -70,6 +74,7 @@ def create_router(
     batch_summary_use_case: BatchSummarizeOutcarUseCase,
     batch_diagnostics_use_case: BatchDiagnoseOutcarUseCase,
     batch_insights_use_case: BuildBatchInsightsUseCase,
+    run_report_use_case: BuildRunReportUseCase,
     diagnostics_use_case: DiagnoseOutcarUseCase,
     profile_use_case: BuildConvergenceProfileUseCase,
     ionic_series_use_case: BuildIonicSeriesUseCase,
@@ -155,6 +160,22 @@ def create_router(
         if not result.ok or result.value is None:
             _raise_http_from_error(result.error or AppError(ErrorCode.INTERNAL_ERROR, "Unknown application error"))
         return BatchInsightsResponseSchema(**result.value.to_mapping())
+
+    @router.post(
+        "/v1/run/report",
+        response_model=RunReportResponseSchema,
+        responses=error_responses,
+    )
+    def run_report(request: RunReportRequestSchema) -> RunReportResponseSchema:
+        try:
+            payload = validate_run_report_request(request.model_dump())
+        except Exception as exc:
+            _raise_http_from_error(normalize_error(exc))
+
+        result = run_report_use_case.execute(payload)
+        if not result.ok or result.value is None:
+            _raise_http_from_error(result.error or AppError(ErrorCode.INTERNAL_ERROR, "Unknown application error"))
+        return RunReportResponseSchema(**result.value.to_mapping())
 
     @router.post("/v1/outcar/diagnostics", response_model=DiagnosticsResponseSchema, responses=error_responses)
     def diagnose_outcar(request: DiagnosticsRequestSchema) -> DiagnosticsResponseSchema:

@@ -8,6 +8,7 @@ const addBatchOutputDirButton = document.getElementById("add_batch_output_dir");
 const clearBatchOutputDirsButton = document.getElementById("clear_batch_output_dirs");
 
 const includeHistoryInput = document.getElementById("include_history");
+const reportIncludeElectronicInput = document.getElementById("report_include_electronic");
 const energyToleranceInput = document.getElementById("energy_tol");
 const forceToleranceInput = document.getElementById("force_tol");
 const batchFailFastInput = document.getElementById("batch_fail_fast");
@@ -46,6 +47,7 @@ const STORAGE_KEYS = {
 };
 
 const ACTION_LABELS = {
+  run_report: "Run Report",
   summary: "Summary",
   diagnostics: "Diagnostics",
   convergence_profile: "Convergence Profile",
@@ -278,6 +280,18 @@ async function loadConfig() {
 function buildOperationRequest(action) {
   const outputDir = outputDirInput.value.trim();
 
+  if (action === "run_report") {
+    return {
+      endpoint: "/ui/run-report",
+      payload: {
+        run_dir: resolveRunDirectory(outputDir),
+        energy_tolerance_ev: readPositiveNumber(energyToleranceInput, "Energy tolerance"),
+        force_tolerance_ev_per_a: readPositiveNumber(forceToleranceInput, "Force tolerance"),
+        include_electronic: reportIncludeElectronicInput.checked,
+      },
+    };
+  }
+
   if (action === "summary") {
     return {
       endpoint: "/ui/summary",
@@ -436,6 +450,19 @@ function resolvePrimaryFilePath(outputDir, fileName) {
   }
 
   return joinPath(normalized, fileName);
+}
+
+function resolveRunDirectory(outputDir) {
+  const normalized = String(outputDir || "").trim();
+  if (!normalized) {
+    throw new UiInputError("Primary run folder is required.");
+  }
+
+  if (/(^|[\\/])(OUTCAR|EIGENVAL|DOSCAR)$/i.test(normalized)) {
+    return normalized.replace(/[\\/][^\\/]+$/, "");
+  }
+
+  return normalized;
 }
 
 function parseBatchOutcarPaths(raw) {
@@ -662,6 +689,10 @@ function renderError(action, error) {
 }
 
 function buildRenderedResult(action, payload) {
+  if (action === "run_report") {
+    return renderRunReport(payload);
+  }
+
   if (action === "summary") {
     return renderSummary(payload);
   }
@@ -711,6 +742,48 @@ function buildRenderedResult(action, payload) {
   }
 
   return renderGenericPayload(payload);
+}
+
+function renderRunReport(data) {
+  const stack = createElement("div", "result-stack");
+
+  const overview = createSection("Run Report", data.run_dir || "");
+  overview.appendChild(
+    createMetricGrid([
+      { label: "Status", value: data.recommended_status },
+      { label: "Converged", value: data.is_converged },
+      { label: "OUTCAR", value: data.outcar_path || "-" },
+      { label: "EIGENVAL", value: data.eigenval_path || "not found" },
+      { label: "DOSCAR", value: data.doscar_path || "not found" },
+    ])
+  );
+  appendWarnings(overview, data.warnings);
+  stack.appendChild(overview);
+
+  const actions = Array.isArray(data.suggested_actions) ? data.suggested_actions : [];
+  if (actions.length > 0) {
+    const actionSection = createSection("Suggested Actions");
+    const list = createElement("ul", "warning-list");
+    for (const action of actions) {
+      list.appendChild(createElement("li", "", String(action)));
+    }
+    actionSection.appendChild(list);
+    stack.appendChild(actionSection);
+  }
+
+  if (data.summary) {
+    stack.appendChild(renderSummary(data.summary));
+  }
+
+  if (data.diagnostics) {
+    stack.appendChild(renderDiagnostics(data.diagnostics));
+  }
+
+  if (data.electronic_metadata) {
+    stack.appendChild(renderElectronicMetadata(data.electronic_metadata));
+  }
+
+  return stack;
 }
 
 function renderSummary(data) {

@@ -67,6 +67,15 @@ class UiDiagnosticsRequest(BaseModel):
     force_tolerance_ev_per_a: float = Field(default=0.02)
 
 
+class UiRunReportRequest(BaseModel):
+    """GUI consolidated run-report request schema."""
+
+    run_dir: str = Field(..., description="Path to VASP run directory")
+    energy_tolerance_ev: float = Field(default=1e-4)
+    force_tolerance_ev_per_a: float = Field(default=0.02)
+    include_electronic: bool = Field(default=True)
+
+
 class UiConvergenceProfileRequest(BaseModel):
     """GUI convergence-profile request schema."""
 
@@ -228,6 +237,18 @@ def create_gui_app(
                 force_tolerance_ev_per_a=request.force_tolerance_ev_per_a,
                 top_n=request.top_n,
                 fail_fast=request.fail_fast,
+            )
+        except Exception as exc:
+            _raise_ui_http_error(exc)
+
+    @app.post("/ui/run-report")
+    def ui_run_report(request: UiRunReportRequest) -> dict:
+        try:
+            return app.state.bridge.build_run_report(
+                run_dir=request.run_dir,
+                energy_tolerance_ev=request.energy_tolerance_ev,
+                force_tolerance_ev_per_a=request.force_tolerance_ev_per_a,
+                include_electronic=request.include_electronic,
             )
         except Exception as exc:
             _raise_ui_http_error(exc)

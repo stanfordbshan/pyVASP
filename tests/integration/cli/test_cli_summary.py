@@ -112,6 +112,34 @@ def test_cli_batch_insights_direct_mode(capsys) -> None:
     assert payload["rows"][1]["error"]["code"] == "FILE_NOT_FOUND"
 
 
+def test_cli_run_report_direct_mode(tmp_path: Path, capsys) -> None:
+    run_dir = tmp_path / "run_report"
+    run_dir.mkdir()
+    (run_dir / "OUTCAR").write_text(FIXTURE_PHASE2.read_text(encoding="utf-8"), encoding="utf-8")
+    (run_dir / "EIGENVAL").write_text(EIGENVAL_FIXTURE.read_text(encoding="utf-8"), encoding="utf-8")
+    (run_dir / "DOSCAR").write_text(DOSCAR_FIXTURE.read_text(encoding="utf-8"), encoding="utf-8")
+
+    exit_code = main(
+        [
+            "run-report",
+            str(run_dir),
+            "--mode",
+            "direct",
+            "--energy-tol",
+            "1e-4",
+            "--force-tol",
+            "0.02",
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    payload = json.loads(captured.out)
+    assert payload["run_dir"] == str(run_dir.resolve())
+    assert payload["recommended_status"] == "ready"
+    assert payload["electronic_metadata"]["band_gap"]["fundamental_gap_ev"] == 1.3
+
+
 def test_cli_diagnostics_direct_mode(capsys) -> None:
     exit_code = main(["diagnostics", str(FIXTURE_PHASE2), "--mode", "direct"])
     captured = capsys.readouterr()

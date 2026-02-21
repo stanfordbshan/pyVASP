@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from itertools import chain
+from pathlib import Path
 
 from pyvasp.application.ports import (
     DosProfileReader,
@@ -42,6 +43,8 @@ from pyvasp.core.payloads import (
     GenerateRelaxInputResponsePayload,
     IonicSeriesRequestPayload,
     IonicSeriesResponsePayload,
+    RunReportRequestPayload,
+    RunReportResponsePayload,
     SummaryRequestPayload,
     SummaryResponsePayload,
 )
@@ -348,6 +351,112 @@ class BuildBatchInsightsUseCase:
         )
 
 
+class BuildRunReportUseCase:
+    """Build a consolidated run report from one VASP output directory."""
+
+    def __init__(
+        self,
+        *,
+        outcar_reader: OutcarObservablesReader,
+        electronic_reader: ElectronicMetadataReader,
+    ) -> None:
+        self._outcar_reader = outcar_reader
+        self._electronic_reader = electronic_reader
+
+    def execute(self, request: RunReportRequestPayload) -> AppResult[RunReportResponsePayload]:
+        """Build summary/diagnostics/electronic report for one run folder."""
+
+        try:
+            run_dir = request.validated_run_dir()
+            outcar_path = validate_outcar_path(str(run_dir / "OUTCAR"))
+
+            observables = self._outcar_reader.parse_observables_file(outcar_path)
+            convergence = build_convergence_report(
+                observables.summary,
+                energy_tolerance_ev=request.energy_tolerance_ev,
+                force_tolerance_ev_per_a=request.force_tolerance_ev_per_a,
+            )
+
+            report_warnings = list(observables.summary.warnings)
+            report_warnings.extend(observables.warnings)
+            if convergence.is_energy_converged is None:
+                report_warnings.append("Energy convergence could not be evaluated (insufficient TOTEN history)")
+            if convergence.is_force_converged is None:
+                report_warnings.append("Force convergence could not be evaluated (missing force table)")
+
+            diagnostics = OutcarDiagnostics(
+                source_path=observables.source_path,
+                summary=observables.summary,
+                external_pressure_kb=observables.external_pressure_kb,
+                stress_tensor_kb=observables.stress_tensor_kb,
+                magnetization=observables.magnetization,
+                convergence=convergence,
+                warnings=tuple(dict.fromkeys(report_warnings)),
+            )
+            summary_payload = SummaryResponsePayload.from_summary(observables.summary, include_history=False).to_mapping()
+            diagnostics_payload = DiagnosticsResponsePayload.from_diagnostics(diagnostics).to_mapping()
+
+            eigenval_path = _optional_file(run_dir, "EIGENVAL")
+            doscar_path = _optional_file(run_dir, "DOSCAR")
+            electronic_payload: dict[str, object] | None = None
+
+            if request.include_electronic:
+                if eigenval_path is not None or doscar_path is not None:
+                    metadata = self._electronic_reader.parse_metadata(
+                        eigenval_path=eigenval_path,
+                        doscar_path=doscar_path,
+                    )
+                    mapped = ElectronicMetadataResponsePayload.from_metadata(metadata).to_mapping()
+                    electronic_payload = mapped
+                    report_warnings.extend(mapped.get("warnings", []))
+                else:
+                    report_warnings.append(
+                        "EIGENVAL/DOSCAR not found in run directory; electronic metadata section skipped"
+                    )
+
+            is_converged = diagnostics_payload["convergence"].get("is_converged")
+            suggested_actions: list[str] = []
+            if is_converged is True:
+                suggested_actions.append("Run is converged; suitable for downstream screening/comparison")
+            elif is_converged is False:
+                suggested_actions.append("Run is not converged; tighten relaxation settings and continue ionic steps")
+            else:
+                suggested_actions.append("Convergence is indeterminate; inspect OUTCAR completeness and force table")
+
+            if request.include_electronic and (eigenval_path is None and doscar_path is None):
+                suggested_actions.append("Generate or retain EIGENVAL/DOSCAR for electronic post-processing")
+
+            if request.include_electronic and electronic_payload is not None and electronic_payload.get("band_gap"):
+                band_gap = electronic_payload["band_gap"]
+                if isinstance(band_gap, dict) and band_gap.get("is_metal") is True:
+                    suggested_actions.append("Metallic character detected; inspect DOS near E-fermi for finite states")
+
+            recommended_status = "ready"
+            if is_converged is False:
+                recommended_status = "needs_convergence"
+            elif is_converged is None:
+                recommended_status = "incomplete"
+
+            warnings_unique = tuple(dict.fromkeys(str(item) for item in report_warnings if str(item).strip()))
+            return AppResult.success(
+                RunReportResponsePayload(
+                    run_dir=str(run_dir),
+                    outcar_path=str(outcar_path),
+                    eigenval_path=None if eigenval_path is None else str(eigenval_path),
+                    doscar_path=None if doscar_path is None else str(doscar_path),
+                    summary=summary_payload,
+                    diagnostics=diagnostics_payload,
+                    electronic_metadata=electronic_payload,
+                    is_converged=is_converged,
+                    recommended_status=recommended_status,
+                    suggested_actions=tuple(dict.fromkeys(suggested_actions)),
+                    warnings=warnings_unique,
+                )
+            )
+        except (ValidationError, ParseError, OSError, ValueError) as exc:
+            return AppResult.failure(exc)
+
+
 class DiagnoseOutcarUseCase:
     """Builds convergence-focused diagnostics from parsed OUTCAR observables."""
 
@@ -569,3 +678,10 @@ class GenerateRelaxInputUseCase:
             return AppResult.success(GenerateRelaxInputResponsePayload.from_bundle(bundle))
         except (ValidationError, OSError, ValueError) as exc:
             return AppResult.failure(exc)
+
+
+def _optional_file(run_dir: Path, filename: str) -> Path | None:
+    candidate = run_dir / filename
+    if candidate.exists() and candidate.is_file():
+        return candidate.resolve()
+    return None

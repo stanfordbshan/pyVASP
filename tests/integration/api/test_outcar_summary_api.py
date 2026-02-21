@@ -193,6 +193,48 @@ def test_api_batch_insights_bad_request() -> None:
     assert "top_n" in detail["message"]
 
 
+def test_api_run_report_success(tmp_path: Path) -> None:
+    run_dir = tmp_path / "run_report"
+    run_dir.mkdir()
+    (run_dir / "OUTCAR").write_text(FIXTURE_PHASE2.read_text(encoding="utf-8"), encoding="utf-8")
+    (run_dir / "EIGENVAL").write_text(EIGENVAL_FIXTURE.read_text(encoding="utf-8"), encoding="utf-8")
+    (run_dir / "DOSCAR").write_text(DOSCAR_FIXTURE.read_text(encoding="utf-8"), encoding="utf-8")
+
+    client = TestClient(create_app())
+    response = client.post(
+        "/v1/run/report",
+        json={
+            "run_dir": str(run_dir),
+            "energy_tolerance_ev": 1e-4,
+            "force_tolerance_ev_per_a": 0.02,
+            "include_electronic": True,
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["run_dir"] == str(run_dir.resolve())
+    assert body["recommended_status"] == "ready"
+    assert body["is_converged"] is True
+    assert body["electronic_metadata"]["band_gap"]["fundamental_gap_ev"] == 1.3
+
+
+def test_api_run_report_missing_outcar_returns_400(tmp_path: Path) -> None:
+    run_dir = tmp_path / "run_report_missing_outcar"
+    run_dir.mkdir()
+
+    client = TestClient(create_app())
+    response = client.post(
+        "/v1/run/report",
+        json={"run_dir": str(run_dir), "include_electronic": True},
+    )
+
+    assert response.status_code == 400
+    detail = response.json()["detail"]
+    assert detail["code"] == "FILE_NOT_FOUND"
+    assert "OUTCAR" in detail["message"]
+
+
 def test_api_diagnostics_success() -> None:
     client = TestClient(create_app())
     response = client.post(

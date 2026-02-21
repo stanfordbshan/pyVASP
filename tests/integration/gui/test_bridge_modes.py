@@ -108,6 +108,21 @@ def test_bridge_direct_mode_profile_electronic_and_input_generation() -> None:
     assert "ENCUT = 520" in generated["incar_text"]
 
 
+def test_bridge_direct_mode_run_report(tmp_path: Path) -> None:
+    run_dir = tmp_path / "run_report"
+    run_dir.mkdir()
+    (run_dir / "OUTCAR").write_text(FIXTURE_PHASE2.read_text(encoding="utf-8"), encoding="utf-8")
+    (run_dir / "EIGENVAL").write_text(EIGENVAL_FIXTURE.read_text(encoding="utf-8"), encoding="utf-8")
+    (run_dir / "DOSCAR").write_text(DOSCAR_FIXTURE.read_text(encoding="utf-8"), encoding="utf-8")
+
+    bridge = GuiBackendBridge(mode="direct")
+    report = bridge.build_run_report(run_dir=str(run_dir))
+
+    assert report["run_dir"] == str(run_dir.resolve())
+    assert report["recommended_status"] == "ready"
+    assert report["electronic_metadata"]["band_gap"]["fundamental_gap_ev"] == 1.3
+
+
 def test_bridge_auto_mode_falls_back_to_api(monkeypatch) -> None:
     bridge = GuiBackendBridge(mode="auto")
 
@@ -149,6 +164,8 @@ def test_gui_host_index_exposes_tabbed_workspace() -> None:
     assert "Batch Screening" in html
     assert "Electronic + Export" in html
     assert "Input Builder" in html
+    assert 'id="report_include_electronic"' in html
+    assert 'data-action="run_report"' in html
     assert 'id="batch_root_dir"' in html
     assert 'id="pick_batch_root_dir"' in html
     assert 'id="batch_top_n"' in html
@@ -199,7 +216,7 @@ def test_gui_host_ui_summary_missing_file_returns_structured_error() -> None:
     assert "does not exist" in detail["message"]
 
 
-def test_gui_host_ui_profile_electronic_and_input_endpoints() -> None:
+def test_gui_host_ui_profile_electronic_and_input_endpoints(tmp_path: Path) -> None:
     app = create_gui_app(mode="direct")
     client = TestClient(app)
 
@@ -253,6 +270,20 @@ def test_gui_host_ui_profile_electronic_and_input_endpoints() -> None:
     assert batch_insights.json()["total_count"] == 2
     assert batch_insights.json()["success_count"] == 1
     assert batch_insights.json()["top_lowest_energy"][0]["rank"] == 1
+
+    run_dir = tmp_path / "run_report"
+    run_dir.mkdir()
+    (run_dir / "OUTCAR").write_text(FIXTURE_PHASE2.read_text(encoding="utf-8"), encoding="utf-8")
+    (run_dir / "EIGENVAL").write_text(EIGENVAL_FIXTURE.read_text(encoding="utf-8"), encoding="utf-8")
+    (run_dir / "DOSCAR").write_text(DOSCAR_FIXTURE.read_text(encoding="utf-8"), encoding="utf-8")
+
+    run_report = client.post(
+        "/ui/run-report",
+        json={"run_dir": str(run_dir), "include_electronic": True},
+    )
+    assert run_report.status_code == 200
+    assert run_report.json()["run_dir"] == str(run_dir.resolve())
+    assert run_report.json()["recommended_status"] == "ready"
 
     discovered = client.post(
         "/ui/discover-runs",

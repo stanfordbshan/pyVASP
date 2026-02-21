@@ -109,6 +109,39 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_shared_backend_args(batch_insights)
 
+    run_report = subparsers.add_parser(
+        "run-report",
+        help="Build consolidated summary/diagnostics/electronic report from one run folder",
+    )
+    run_report.add_argument("run_dir", help="Path to VASP run directory")
+    run_report.add_argument(
+        "--energy-tol",
+        type=float,
+        default=1e-4,
+        help="Energy convergence tolerance in eV (|ΔE| <= tol)",
+    )
+    run_report.add_argument(
+        "--force-tol",
+        type=float,
+        default=0.02,
+        help="Force convergence tolerance in eV/Ang (max force <= tol)",
+    )
+    mode = run_report.add_mutually_exclusive_group()
+    mode.add_argument(
+        "--include-electronic",
+        dest="include_electronic",
+        action="store_true",
+        help="Include EIGENVAL/DOSCAR parsing when files are present (default)",
+    )
+    mode.add_argument(
+        "--skip-electronic",
+        dest="include_electronic",
+        action="store_false",
+        help="Skip electronic metadata section",
+    )
+    run_report.set_defaults(include_electronic=True)
+    _add_shared_backend_args(run_report)
+
     diagnostics = subparsers.add_parser("diagnostics", help="Convergence/stress/magnetization diagnostics")
     diagnostics.add_argument("outcar_path", help="Path to OUTCAR file")
     diagnostics.add_argument(
@@ -232,6 +265,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "batch-insights":
         return _run_batch_insights(bridge, args)
 
+    if args.command == "run-report":
+        return _run_run_report(bridge, args)
+
     if args.command == "diagnostics":
         return _run_diagnostics(bridge, args)
 
@@ -324,6 +360,22 @@ def _run_batch_insights(bridge: GuiBackendBridge, args: argparse.Namespace) -> i
             force_tolerance_ev_per_a=args.force_tol,
             top_n=args.top_n,
             fail_fast=args.fail_fast,
+        )
+    except Exception as exc:
+        print(json.dumps({"error": str(exc)}), file=sys.stderr)
+        return 1
+
+    print(json.dumps(data, indent=2))
+    return 0
+
+
+def _run_run_report(bridge: GuiBackendBridge, args: argparse.Namespace) -> int:
+    try:
+        data = bridge.build_run_report(
+            run_dir=args.run_dir,
+            energy_tolerance_ev=args.energy_tol,
+            force_tolerance_ev_per_a=args.force_tol,
+            include_electronic=args.include_electronic,
         )
     except Exception as exc:
         print(json.dumps({"error": str(exc)}), file=sys.stderr)

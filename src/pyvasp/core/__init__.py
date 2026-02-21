@@ -46,6 +46,8 @@ from pyvasp.core.payloads import (
     GenerateRelaxInputResponsePayload,
     IonicSeriesRequestPayload,
     IonicSeriesResponsePayload,
+    RunReportRequestPayload,
+    RunReportResponsePayload,
     SummaryRequestPayload,
     SummaryResponsePayload,
 )
@@ -89,6 +91,8 @@ __all__ = [
     "GenerateRelaxInputResponsePayload",
     "IonicSeriesRequestPayload",
     "IonicSeriesResponsePayload",
+    "RunReportRequestPayload",
+    "RunReportResponsePayload",
     "MagnetizationSummary",
     "OutcarDiagnostics",
     "OutcarIonicSeries",

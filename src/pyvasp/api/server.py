@@ -12,6 +12,7 @@ from pyvasp.application.use_cases import (
     BuildConvergenceProfileUseCase,
     BuildDosProfileUseCase,
     BuildIonicSeriesUseCase,
+    BuildRunReportUseCase,
     DiagnoseOutcarUseCase,
     DiscoverOutcarRunsUseCase,
     ExportOutcarTabularUseCase,
@@ -34,6 +35,10 @@ def create_app() -> FastAPI:
     batch_summary_use_case = BatchSummarizeOutcarUseCase(reader=outcar_parser)
     batch_diagnostics_use_case = BatchDiagnoseOutcarUseCase(reader=outcar_parser)
     batch_insights_use_case = BuildBatchInsightsUseCase(reader=outcar_parser)
+    run_report_use_case = BuildRunReportUseCase(
+        outcar_reader=outcar_parser,
+        electronic_reader=electronic_parser,
+    )
     diagnostics_use_case = DiagnoseOutcarUseCase(reader=outcar_parser)
     profile_use_case = BuildConvergenceProfileUseCase(reader=outcar_parser)
     ionic_series_use_case = BuildIonicSeriesUseCase(reader=outcar_parser)
@@ -57,6 +62,7 @@ def create_app() -> FastAPI:
             batch_summary_use_case,
             batch_diagnostics_use_case,
             batch_insights_use_case,
+            run_report_use_case,
             diagnostics_use_case,
             profile_use_case,
             ionic_series_use_case,
