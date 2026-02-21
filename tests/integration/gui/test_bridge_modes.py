@@ -109,6 +109,34 @@ def test_gui_host_ui_summary_endpoint() -> None:
     assert response.json()["final_total_energy_ev"] == -10.5
 
 
+def test_gui_host_index_exposes_tabbed_workspace() -> None:
+    app = create_gui_app(mode="direct")
+    client = TestClient(app)
+
+    response = client.get("/")
+    assert response.status_code == 200
+
+    html = response.text
+    assert "Post-processing" in html
+    assert "Batch Screening" in html
+    assert "Electronic + Export" in html
+    assert "Input Builder" in html
+    assert 'id="parse_eigenval"' in html
+    assert 'id="parse_doscar"' in html
+
+
+def test_gui_host_ui_pick_folder_endpoint(monkeypatch) -> None:
+    app = create_gui_app(mode="direct")
+    client = TestClient(app)
+
+    monkeypatch.setattr("pyvasp.gui.host._pick_folder_path", lambda: "/tmp/vasp_run")
+    response = client.post("/ui/pick-folder", json={})
+
+    assert response.status_code == 200
+    assert response.json()["selected"] is True
+    assert response.json()["folder_path"] == "/tmp/vasp_run"
+
+
 def test_gui_host_ui_diagnostics_endpoint() -> None:
     app = create_gui_app(mode="direct")
     client = TestClient(app)

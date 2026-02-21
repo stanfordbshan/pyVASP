@@ -7,73 +7,132 @@
     <link rel="stylesheet" href="/assets/style.css" />
   </head>
   <body>
-    <main class="panel">
-      <h1>pyVASP OUTCAR + Input Tools</h1>
-      <p id="mode-label" class="muted"></p>
-
-      <form id="run-form">
-        <label for="operation">Operation</label>
-        <select id="operation" name="operation">
-          <option value="summary">Summary</option>
-          <option value="batch_summary">Batch Summary</option>
-          <option value="batch_diagnostics">Batch Diagnostics</option>
-          <option value="diagnostics">Diagnostics</option>
-          <option value="convergence_profile">Convergence Profile</option>
-          <option value="ionic_series">Ionic Series</option>
-          <option value="export_tabular">Export Tabular (CSV)</option>
-          <option value="electronic_metadata">Electronic Metadata</option>
-          <option value="generate_relax_input">Generate Relax Input</option>
-        </select>
-
-        <label for="export_dataset">Export Dataset</label>
-        <select id="export_dataset" name="export_dataset">
-          <option value="ionic_series">Ionic Series</option>
-          <option value="convergence_profile">Convergence Profile</option>
-        </select>
-
-        <label for="export_delimiter">Export Delimiter</label>
-        <select id="export_delimiter" name="export_delimiter">
-          <option value=",">Comma (,)</option>
-          <option value=";">Semicolon (;)</option>
-          <option value="\t">Tab</option>
-        </select>
-
-        <label for="outcar_path">OUTCAR Path</label>
-        <input id="outcar_path" name="outcar_path" type="text" placeholder="/path/to/OUTCAR" />
-
-        <label for="batch_outcar_paths">Batch OUTCAR Paths (one per line)</label>
-        <textarea id="batch_outcar_paths" name="batch_outcar_paths" rows="5" placeholder="/path/one/OUTCAR&#10;/path/two/OUTCAR"></textarea>
-
-        <label for="eigenval_path">EIGENVAL Path</label>
-        <input id="eigenval_path" name="eigenval_path" type="text" placeholder="/path/to/EIGENVAL" />
-
-        <label for="doscar_path">DOSCAR Path</label>
-        <input id="doscar_path" name="doscar_path" type="text" placeholder="/path/to/DOSCAR" />
-
-        <label class="checkbox">
-          <input id="include_history" name="include_history" type="checkbox" />
-          Include energy history (summary mode)
-        </label>
-
-        <label class="checkbox">
-          <input id="batch_fail_fast" name="batch_fail_fast" type="checkbox" />
-          Batch fail-fast (stop after first failed row)
-        </label>
-
-        <div class="grid-two">
-          <div>
-            <label for="energy_tol">Energy tolerance (eV)</label>
-            <input id="energy_tol" name="energy_tol" type="number" step="any" value="0.0001" />
-          </div>
-          <div>
-            <label for="force_tol">Force tolerance (eV/Ang)</label>
-            <input id="force_tol" name="force_tol" type="number" step="any" value="0.02" />
-          </div>
+    <main class="app-shell">
+      <section class="hero">
+        <div>
+          <p class="eyebrow">pyVASP Workspace</p>
+          <h1>VASP Post-processing Studio</h1>
+          <p class="hero-text">
+            Folder-first workflow: select one VASP output directory and run diagnostics, electronic analysis, and
+            export pipelines from organized task pages.
+          </p>
         </div>
+        <div class="mode-chip" id="mode-label">Execution mode: loading...</div>
+      </section>
 
-        <h2>Relax Input Params</h2>
-        <label for="structure_json">Structure JSON</label>
-        <textarea id="structure_json" name="structure_json" rows="9">{
+      <section class="folder-card">
+        <h2>Primary Run Folder</h2>
+        <p class="muted">All single-run pages auto-resolve standard files (`OUTCAR`, `EIGENVAL`, `DOSCAR`) from this folder.</p>
+        <div class="path-picker">
+          <input id="output_dir" name="output_dir" type="text" placeholder="/path/to/vasp_run" />
+          <button id="pick_output_dir" type="button" class="secondary">Browse Folder</button>
+        </div>
+      </section>
+
+      <nav class="tab-nav" aria-label="Task Pages" role="tablist">
+        <button class="tab active" type="button" role="tab" aria-selected="true" aria-controls="page-post" data-page-target="page-post">
+          Post-processing
+        </button>
+        <button class="tab" type="button" role="tab" aria-selected="false" aria-controls="page-batch" data-page-target="page-batch">
+          Batch Screening
+        </button>
+        <button class="tab" type="button" role="tab" aria-selected="false" aria-controls="page-electronic" data-page-target="page-electronic">
+          Electronic + Export
+        </button>
+        <button class="tab" type="button" role="tab" aria-selected="false" aria-controls="page-input" data-page-target="page-input">
+          Input Builder
+        </button>
+      </nav>
+
+      <section class="workspace">
+        <section class="control-column">
+          <article id="page-post" class="task-page active" role="tabpanel">
+            <h2>Post-processing</h2>
+            <p class="muted">Run single-output analysis from the selected VASP folder.</p>
+            <div class="grid-two">
+              <div>
+                <label class="checkbox">
+                  <input id="include_history" name="include_history" type="checkbox" />
+                  Include full energy history
+                </label>
+              </div>
+              <div class="mini-grid">
+                <label for="energy_tol">Energy tolerance (eV)</label>
+                <input id="energy_tol" name="energy_tol" type="number" step="any" value="0.0001" />
+              </div>
+              <div class="mini-grid">
+                <label for="force_tol">Force tolerance (eV/Ang)</label>
+                <input id="force_tol" name="force_tol" type="number" step="any" value="0.02" />
+              </div>
+            </div>
+            <div class="action-grid">
+              <button type="button" data-action="summary">Summary</button>
+              <button type="button" data-action="diagnostics">Diagnostics</button>
+              <button type="button" data-action="convergence_profile">Convergence Profile</button>
+              <button type="button" data-action="ionic_series">Ionic Series</button>
+            </div>
+          </article>
+
+          <article id="page-batch" class="task-page" role="tabpanel">
+            <h2>Batch Screening</h2>
+            <p class="muted">Process many run folders at once with per-row success/error results.</p>
+            <label for="batch_output_dirs">Batch Output Folders (one per line)</label>
+            <textarea id="batch_output_dirs" name="batch_output_dirs" rows="7" placeholder="/path/run1&#10;/path/run2"></textarea>
+            <div class="inline-actions">
+              <button id="add_batch_output_dir" type="button" class="secondary">Add Folder</button>
+              <button id="clear_batch_output_dirs" type="button" class="secondary">Clear List</button>
+            </div>
+            <label class="checkbox">
+              <input id="batch_fail_fast" name="batch_fail_fast" type="checkbox" />
+              Fail-fast (stop after first failed row)
+            </label>
+            <div class="action-grid">
+              <button type="button" data-action="batch_summary">Batch Summary</button>
+              <button type="button" data-action="batch_diagnostics">Batch Diagnostics</button>
+            </div>
+          </article>
+
+          <article id="page-electronic" class="task-page" role="tabpanel">
+            <h2>Electronic + Export</h2>
+            <p class="muted">Use electronic metadata parsing and tabular export workflows from the same run folder.</p>
+            <div class="grid-two">
+              <label class="checkbox">
+                <input id="parse_eigenval" name="parse_eigenval" type="checkbox" checked />
+                Parse EIGENVAL band gap metadata
+              </label>
+              <label class="checkbox">
+                <input id="parse_doscar" name="parse_doscar" type="checkbox" checked />
+                Parse DOSCAR DOS metadata
+              </label>
+            </div>
+            <div class="grid-two">
+              <div class="mini-grid">
+                <label for="export_dataset">Export Dataset</label>
+                <select id="export_dataset" name="export_dataset">
+                  <option value="ionic_series">Ionic Series</option>
+                  <option value="convergence_profile">Convergence Profile</option>
+                </select>
+              </div>
+              <div class="mini-grid">
+                <label for="export_delimiter">Export Delimiter</label>
+                <select id="export_delimiter" name="export_delimiter">
+                  <option value=",">Comma (,)</option>
+                  <option value=";">Semicolon (;)</option>
+                  <option value="\t">Tab</option>
+                </select>
+              </div>
+            </div>
+            <div class="action-grid">
+              <button type="button" data-action="electronic_metadata">Electronic Metadata</button>
+              <button type="button" data-action="export_tabular">Export Tabular (CSV)</button>
+            </div>
+          </article>
+
+          <article id="page-input" class="task-page" role="tabpanel">
+            <h2>Input Builder</h2>
+            <p class="muted">Generate relaxation input files from a structure payload.</p>
+            <label for="structure_json">Structure JSON</label>
+            <textarea id="structure_json" name="structure_json" rows="11">{
   "comment": "Si2",
   "lattice_vectors": [[5.43, 0, 0], [0, 5.43, 0], [0, 0, 5.43]],
   "atoms": [
@@ -81,33 +140,46 @@
     {"element": "Si", "frac_coords": [0.25, 0.25, 0.25]}
   ]
 }</textarea>
+            <div class="grid-three">
+              <div class="mini-grid">
+                <label for="kmesh_x">KX</label>
+                <input id="kmesh_x" type="number" value="6" />
+              </div>
+              <div class="mini-grid">
+                <label for="kmesh_y">KY</label>
+                <input id="kmesh_y" type="number" value="6" />
+              </div>
+              <div class="mini-grid">
+                <label for="kmesh_z">KZ</label>
+                <input id="kmesh_z" type="number" value="6" />
+              </div>
+            </div>
+            <label class="checkbox">
+              <input id="gamma_centered" name="gamma_centered" type="checkbox" checked />
+              Gamma-centered k-mesh
+            </label>
+            <div class="action-grid">
+              <button type="button" data-action="generate_relax_input">Generate Relax Input</button>
+            </div>
+          </article>
+        </section>
 
-        <div class="grid-three">
-          <div>
-            <label for="kmesh_x">KX</label>
-            <input id="kmesh_x" type="number" value="6" />
+        <section class="result-column">
+          <div class="result-header">
+            <h2>Result</h2>
+            <p id="result-status" class="muted">No operation run yet.</p>
           </div>
-          <div>
-            <label for="kmesh_y">KY</label>
-            <input id="kmesh_y" type="number" value="6" />
+
+          <div class="view-toggle">
+            <button id="view_rendered" type="button" class="secondary active">Rendered View</button>
+            <button id="view_raw" type="button" class="secondary">Raw JSON</button>
           </div>
-          <div>
-            <label for="kmesh_z">KZ</label>
-            <input id="kmesh_z" type="number" value="6" />
+
+          <div id="result_rendered" class="result-rendered">
+            <div class="empty-state">Run an operation from the task pages to see structured output.</div>
           </div>
-        </div>
-
-        <label class="checkbox">
-          <input id="gamma_centered" name="gamma_centered" type="checkbox" checked />
-          Gamma-centered k-mesh
-        </label>
-
-        <button type="submit">Run</button>
-      </form>
-
-      <section>
-        <h2>Result</h2>
-        <pre id="result">No output yet.</pre>
+          <pre id="result_raw" class="result-raw hidden">No output yet.</pre>
+        </section>
       </section>
     </main>
 

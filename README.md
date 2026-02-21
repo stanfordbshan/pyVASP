@@ -118,6 +118,13 @@ pyvasp-gui
 
 Open: `http://127.0.0.1:8080`
 
+GUI primary UX:
+- provide a single `VASP Output Folder`
+- pyVASP auto-resolves `OUTCAR`, `EIGENVAL`, and `DOSCAR` for relevant operations
+- use built-in folder picker buttons (`Browse Folder`, `Add Folder`) instead of typing paths
+- work in task tabs: `Post-processing`, `Batch Screening`, `Electronic + Export`, and `Input Builder`
+- inspect outputs in both a rendered analysis view and a raw JSON view
+
 Runtime env vars:
 - `PYVASP_UI_MODE=direct|api|auto`
 - `PYVASP_API_BASE_URL=http://127.0.0.1:8000`

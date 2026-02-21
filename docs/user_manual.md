@@ -111,6 +111,22 @@ Optional runtime environment:
 - `PYVASP_UI_MODE=direct|api|auto`
 - `PYVASP_API_BASE_URL=http://127.0.0.1:8000`
 
+GUI primary UX:
+- Enter one `VASP output folder` for single-file operations.
+- The GUI auto-resolves standard files from that folder:
+  - `OUTCAR` for summary/diagnostics/profile/series/export
+  - `EIGENVAL` and `DOSCAR` for electronic metadata
+- Navigate by task tabs:
+  - `Post-processing`
+  - `Batch Screening`
+  - `Electronic + Export`
+  - `Input Builder`
+- Results support two views:
+  - `Rendered View` for cards/tables
+  - `Raw JSON` for exact payload inspection
+- For batch operations, provide one output folder per line.
+- Use `Browse Folder` / `Add Folder` buttons to pick folders with the native OS folder picker.
+
 ## 6. Error Responses
 
 API/UI error payload format:

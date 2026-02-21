@@ -5,6 +5,9 @@ from __future__ import annotations
 import os
 from pathlib import Path
 import re
+import shutil
+import subprocess
+import sys
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
@@ -99,6 +102,13 @@ class UiConfigResponse(BaseModel):
     api_base_url: str
 
 
+class UiPickFolderResponse(BaseModel):
+    """Result model for native folder picker actions."""
+
+    selected: bool
+    folder_path: str | None = None
+
+
 ERROR_PREFIX_RE = re.compile(r"^\[([A-Z_]+)\]\s*(.+)$")
 
 
@@ -129,6 +139,16 @@ def create_gui_app(
         active_mode = app.state.bridge.mode
         mode_value = active_mode.value if isinstance(active_mode, ExecutionMode) else str(active_mode)
         return UiConfigResponse(mode=mode_value, api_base_url=app.state.bridge.api_base_url)
+
+    @app.post("/ui/pick-folder", response_model=UiPickFolderResponse)
+    def ui_pick_folder() -> UiPickFolderResponse:
+        try:
+            selected_path = _pick_folder_path()
+            if selected_path is None:
+                return UiPickFolderResponse(selected=False, folder_path=None)
+            return UiPickFolderResponse(selected=True, folder_path=selected_path)
+        except Exception as exc:
+            _raise_ui_http_error(exc)
 
     @app.post("/ui/summary")
     def ui_summary(request: UiSummaryRequest) -> dict:
@@ -257,6 +277,105 @@ def _raise_ui_http_error(exc: Exception) -> None:
         status_code = 500
 
     raise HTTPException(status_code=status_code, detail={"code": code, "message": message}) from exc
+
+
+def _pick_folder_path() -> str | None:
+    if sys.platform == "darwin":
+        return _pick_folder_macos()
+
+    if sys.platform.startswith("linux"):
+        return _pick_folder_linux() or _pick_folder_tk()
+
+    if sys.platform.startswith("win"):
+        return _pick_folder_windows() or _pick_folder_tk()
+
+    return _pick_folder_tk()
+
+
+def _pick_folder_macos() -> str | None:
+    script = 'POSIX path of (choose folder with prompt "Select VASP output folder")'
+    result = subprocess.run(
+        ["osascript", "-e", script],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    if result.returncode != 0:
+        stderr = (result.stderr or "").strip()
+        if "User canceled" in stderr:
+            return None
+        raise RuntimeError(f"Folder picker failed: {stderr or 'unknown error'}")
+
+    folder = (result.stdout or "").strip()
+    if not folder:
+        return None
+    return folder.rstrip("/")
+
+
+def _pick_folder_linux() -> str | None:
+    zenity = shutil.which("zenity")
+    if zenity is None:
+        return None
+
+    result = subprocess.run(
+        [zenity, "--file-selection", "--directory", "--title=Select VASP output folder"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode == 1:
+        return None
+    if result.returncode != 0:
+        stderr = (result.stderr or "").strip()
+        raise RuntimeError(f"Folder picker failed: {stderr or 'unknown error'}")
+
+    folder = (result.stdout or "").strip()
+    return folder or None
+
+
+def _pick_folder_windows() -> str | None:
+    script = (
+        "[void][System.Reflection.Assembly]::LoadWithPartialName('System.windows.forms');"
+        "$dialog = New-Object System.Windows.Forms.FolderBrowserDialog;"
+        "$dialog.Description = 'Select VASP output folder';"
+        "if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {"
+        "Write-Output $dialog.SelectedPath"
+        "}"
+    )
+    result = subprocess.run(
+        ["powershell", "-NoProfile", "-Command", script],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        stderr = (result.stderr or "").strip()
+        if not stderr:
+            return None
+        raise RuntimeError(f"Folder picker failed: {stderr}")
+
+    folder = (result.stdout or "").strip()
+    return folder or None
+
+
+def _pick_folder_tk() -> str | None:
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+    except Exception as exc:
+        raise RuntimeError("No native folder picker backend is available") from exc
+
+    root = tk.Tk()
+    root.withdraw()
+    root.attributes("-topmost", True)
+    try:
+        folder = filedialog.askdirectory(title="Select VASP output folder")
+    finally:
+        root.destroy()
+
+    token = str(folder).strip()
+    return token or None
 
 
 if __name__ == "__main__":
