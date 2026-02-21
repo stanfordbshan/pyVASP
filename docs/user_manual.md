@@ -87,6 +87,18 @@ Electronic metadata request example:
 
 ## 5. GUI Host Usage
 
+Desktop-style launch (recommended):
+```bash
+PYTHONPATH=src python -m pyvasp.gui.launcher --mode direct
+```
+
+The launcher tries to open a native webview window when `pywebview` is installed; otherwise it opens your browser automatically.
+
+Installed entrypoint equivalent:
+```bash
+pyvasp --mode direct
+```
+
 Start GUI host:
 ```bash
 pyvasp-gui

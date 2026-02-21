@@ -24,6 +24,7 @@ dev = [
 ]
 
 [project.scripts]
+pyvasp = "pyvasp.gui.launcher:main"
 pyvasp-api = "pyvasp.api.server:main"
 pyvasp-gui = "pyvasp.gui.host:main"
 pyvasp-cli = "pyvasp.cli.main:main"

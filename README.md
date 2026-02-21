@@ -101,7 +101,17 @@ Status mapping:
 
 ## GUI Host
 
-Start GUI host:
+Desktop-style launcher (opens window automatically):
+```bash
+PYTHONPATH=src python -m pyvasp.gui.launcher --mode direct
+```
+
+If installed, equivalent command is:
+```bash
+pyvasp --mode direct
+```
+
+Low-level GUI host (manual URL open):
 ```bash
 pyvasp-gui
 ```

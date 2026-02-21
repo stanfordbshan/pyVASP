@@ -40,6 +40,7 @@ pyVASP/
         __init__.py
         bridge.py
         host.py
+        launcher.py
         assets/
           index.html
           app.js

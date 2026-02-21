@@ -10,4 +10,5 @@ dependencies:
   - httpx>=0.27,<1.0
   - ase>=3.23
   - pip:
+      - pywebview>=5,<6
       - -e .
