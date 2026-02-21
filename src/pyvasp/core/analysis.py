@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
-from pyvasp.core.models import ConvergenceReport, OutcarSummary
+from pyvasp.core.models import (
+    ConvergenceProfile,
+    ConvergenceProfilePoint,
+    ConvergenceReport,
+    OutcarSummary,
+)
 
 
 def build_convergence_report(
@@ -37,3 +42,28 @@ def build_convergence_report(
         is_force_converged=is_force_converged,
         is_converged=is_converged,
     )
+
+
+def build_convergence_profile(summary: OutcarSummary) -> ConvergenceProfile:
+    """Build chart-ready convergence profile from OUTCAR energy history."""
+
+    if not summary.energy_history:
+        return ConvergenceProfile(points=())
+
+    final_energy = summary.energy_history[-1].total_energy_ev
+    points: list[ConvergenceProfilePoint] = []
+
+    previous: float | None = None
+    for energy in summary.energy_history:
+        delta_energy = None if previous is None else energy.total_energy_ev - previous
+        points.append(
+            ConvergenceProfilePoint(
+                ionic_step=energy.ionic_step,
+                total_energy_ev=energy.total_energy_ev,
+                delta_energy_ev=delta_energy,
+                relative_energy_ev=energy.total_energy_ev - final_energy,
+            )
+        )
+        previous = energy.total_energy_ev
+
+    return ConvergenceProfile(points=tuple(points))

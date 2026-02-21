@@ -2,27 +2,31 @@ from __future__ import annotations
 
 import pytest
 
-from pyvasp.core.analysis import build_convergence_report
+from pyvasp.core.analysis import build_convergence_profile, build_convergence_report
 from pyvasp.core.models import EnergyPoint, OutcarSummary
 
 
-def test_build_convergence_report_detects_converged_case() -> None:
-    summary = OutcarSummary(
+def _make_summary() -> OutcarSummary:
+    return OutcarSummary(
         source_path="/tmp/OUTCAR",
         system_name="Fe2",
         nions=2,
-        ionic_steps=2,
+        ionic_steps=3,
         electronic_iterations=4,
-        final_total_energy_ev=-20.00005,
+        final_total_energy_ev=-20.00010,
         final_fermi_energy_ev=4.2,
         max_force_ev_per_a=0.01,
         energy_history=(
             EnergyPoint(ionic_step=1, total_energy_ev=-20.0),
             EnergyPoint(ionic_step=2, total_energy_ev=-20.00005),
+            EnergyPoint(ionic_step=3, total_energy_ev=-20.00010),
         ),
         warnings=(),
     )
 
+
+def test_build_convergence_report_detects_converged_case() -> None:
+    summary = _make_summary()
     report = build_convergence_report(summary, energy_tolerance_ev=1e-4, force_tolerance_ev_per_a=0.02)
 
     assert report.final_energy_change_ev == pytest.approx(5e-05)
@@ -51,3 +55,13 @@ def test_build_convergence_report_handles_missing_data() -> None:
     assert report.is_energy_converged is None
     assert report.is_force_converged is None
     assert report.is_converged is False
+
+
+def test_build_convergence_profile_points() -> None:
+    summary = _make_summary()
+    profile = build_convergence_profile(summary)
+
+    assert len(profile.points) == 3
+    assert profile.points[0].delta_energy_ev is None
+    assert profile.points[1].delta_energy_ev == pytest.approx(-5e-05)
+    assert profile.points[2].relative_energy_ev == pytest.approx(0.0)

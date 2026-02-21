@@ -5,7 +5,13 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Protocol
 
-from pyvasp.core.models import OutcarObservables, OutcarSummary
+from pyvasp.core.models import (
+    ElectronicStructureMetadata,
+    GeneratedInputBundle,
+    OutcarObservables,
+    OutcarSummary,
+    RelaxInputSpec,
+)
 
 
 class OutcarSummaryReader(Protocol):
@@ -20,3 +26,22 @@ class OutcarObservablesReader(Protocol):
 
     def parse_observables_file(self, outcar_path: Path) -> OutcarObservables:
         """Parse OUTCAR and produce diagnostics observables."""
+
+
+class RelaxInputBuilder(Protocol):
+    """Port for method modules that can render VASP relaxation inputs."""
+
+    def generate_relax_input(self, spec: RelaxInputSpec) -> GeneratedInputBundle:
+        """Render INCAR/KPOINTS/POSCAR bundle for the given spec."""
+
+
+class ElectronicMetadataReader(Protocol):
+    """Port for method modules that parse EIGENVAL/DOSCAR metadata."""
+
+    def parse_metadata(
+        self,
+        *,
+        eigenval_path: Path | None,
+        doscar_path: Path | None,
+    ) -> ElectronicStructureMetadata:
+        """Parse electronic-structure metadata from standard VASP outputs."""

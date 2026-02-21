@@ -2,20 +2,24 @@
 
 pyVASP is a layered Python toolkit for VASP input generation, post-processing, and visualization workflows.
 
-Phase 1-2 implemented a strict backend-first architecture and common OUTCAR post-processing features inspired by practical VASPKIT workflows:
-- energy/iteration summary: `TOTEN`, `E-fermi`, ionic steps, electronic iterations, max force
-- diagnostics: external pressure, stress tensor (`in kB`), final `magnetization (z)` table
-- convergence assessment using configurable energy/force tolerances
+Phase 1-3 capabilities now include:
+- OUTCAR summary and diagnostics (energy/force/pressure/stress/magnetization/convergence)
+- convergence profile output for chart-ready visualization
+- relaxation input generation (`INCAR`, `KPOINTS`, `POSCAR`)
+- VASPKIT-like electronic parsing from standard outputs:
+  - band gap metadata from `EIGENVAL`
+  - DOS metadata from `DOSCAR`
 
 ## Architecture (strict layering)
 
-- `src/pyvasp/core`: domain models, validation, result wrappers, shared payload mapping, convergence logic
+- `src/pyvasp/core`: domain models, validation, payload mapping, analysis
 - `src/pyvasp/application`: transport-agnostic use-cases and ports
-- `src/pyvasp/outcar`: OUTCAR method module (parsing algorithms)
-- `src/pyvasp/api`: HTTP adapter only (FastAPI schemas/routes/bootstrap)
-- `src/pyvasp/gui`: UI adapter only (web host + direct/api/auto bridge)
-- `src/pyvasp/gui/assets`: frontend static assets
-- `src/pyvasp/cli`: CLI adapter (contract surface for scripting)
+- `src/pyvasp/outcar`: OUTCAR parser module
+- `src/pyvasp/inputgen`: input-generation module
+- `src/pyvasp/electronic`: EIGENVAL/DOSCAR parser module
+- `src/pyvasp/api`: HTTP adapter only
+- `src/pyvasp/gui`: UI adapter only (host + direct/api/auto bridge)
+- `src/pyvasp/cli`: CLI adapter
 
 Dependency direction:
 - adapters (`api/gui/cli`) -> `application` -> (`core` + method modules)
@@ -29,7 +33,7 @@ conda env create -f environment.yml
 conda activate pyvasp
 ```
 
-`environment.yml` includes `ase` because it is a common VASP ecosystem dependency and useful for near-term input-generation/post-processing extensions.
+`environment.yml` includes `ase` as a standard VASP ecosystem dependency.
 
 Pip (alternative):
 ```bash
@@ -39,24 +43,22 @@ python -m pip install -e .[dev]
 
 ## CLI
 
-Summary:
 ```bash
 pyvasp-cli summary /absolute/path/to/OUTCAR --mode direct --include-history
-```
-
-Diagnostics:
-```bash
 pyvasp-cli diagnostics /absolute/path/to/OUTCAR --mode direct --energy-tol 1e-4 --force-tol 0.02
+pyvasp-cli convergence-profile /absolute/path/to/OUTCAR --mode direct
+pyvasp-cli electronic-metadata --eigenval-path /path/to/EIGENVAL --doscar-path /path/to/DOSCAR --mode direct
+pyvasp-cli generate-relax-input /absolute/path/to/structure.json --mode direct --output-dir ./vasp_inputs
 ```
 
 Modes:
-- `direct`: in-process backend calls (no HTTP)
-- `api`: remote HTTP backend
+- `direct`: in-process backend calls
+- `api`: remote HTTP backend calls
 - `auto`: direct first, fallback to API
 
 ## API
 
-Start API backend:
+Start backend:
 ```bash
 pyvasp-api
 ```
@@ -64,15 +66,9 @@ pyvasp-api
 Endpoints:
 - `POST /v1/outcar/summary`
 - `POST /v1/outcar/diagnostics`
-
-Diagnostics request example:
-```json
-{
-  "outcar_path": "/absolute/path/to/OUTCAR",
-  "energy_tolerance_ev": 0.0001,
-  "force_tolerance_ev_per_a": 0.02
-}
-```
+- `POST /v1/outcar/convergence-profile`
+- `POST /v1/electronic/metadata`
+- `POST /v1/input/relax-generate`
 
 ## GUI Host
 
@@ -81,8 +77,7 @@ Start GUI host:
 pyvasp-gui
 ```
 
-Open:
-- `http://127.0.0.1:8080`
+Open: `http://127.0.0.1:8080`
 
 Runtime env vars:
 - `PYVASP_UI_MODE=direct|api|auto`
@@ -94,9 +89,7 @@ Runtime env vars:
 pytest
 ```
 
-Coverage includes:
-- unit tests for `core`, `application`, and `outcar`
-- integration tests for API, GUI bridge/host, and CLI contract paths
+Coverage includes unit/integration tests across core, application, adapters, and method modules.
 
 ## Documentation
 

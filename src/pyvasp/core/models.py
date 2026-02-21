@@ -1,8 +1,9 @@
-"""Core domain models for VASP OUTCAR post-processing."""
+"""Core domain models for VASP post-processing and input generation."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -84,4 +85,123 @@ class OutcarDiagnostics:
     stress_tensor_kb: StressTensor | None
     magnetization: MagnetizationSummary | None
     convergence: ConvergenceReport
+    warnings: tuple[str, ...] = field(default_factory=tuple)
+
+
+@dataclass(frozen=True)
+class ConvergenceProfilePoint:
+    """Per-step convergence profile point for chart-friendly visualization."""
+
+    ionic_step: int
+    total_energy_ev: float
+    delta_energy_ev: float | None
+    relative_energy_ev: float
+
+
+@dataclass(frozen=True)
+class ConvergenceProfile:
+    """Energy convergence profile derived from OUTCAR history."""
+
+    points: tuple[ConvergenceProfilePoint, ...] = field(default_factory=tuple)
+
+
+@dataclass(frozen=True)
+class StructureAtom:
+    """Atomic site in fractional coordinates."""
+
+    element: str
+    frac_coords: tuple[float, float, float]
+
+
+@dataclass(frozen=True)
+class RelaxStructure:
+    """Minimal structure representation for POSCAR generation."""
+
+    comment: str
+    lattice_vectors: tuple[tuple[float, float, float], tuple[float, float, float], tuple[float, float, float]]
+    atoms: tuple[StructureAtom, ...]
+
+
+@dataclass(frozen=True)
+class RelaxInputSpec:
+    """Canonical VASP relaxation input specification."""
+
+    structure: RelaxStructure
+    kmesh: tuple[int, int, int]
+    gamma_centered: bool
+    encut: int
+    ediff: float
+    ediffg: float
+    ismear: int
+    sigma: float
+    ibrion: int
+    isif: int
+    nsw: int
+    ispin: int
+    magmom: str | None
+    incar_overrides: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class GeneratedInputBundle:
+    """Rendered VASP input files for a workflow."""
+
+    system_name: str
+    n_atoms: int
+    incar_text: str
+    kpoints_text: str
+    poscar_text: str
+    warnings: tuple[str, ...] = field(default_factory=tuple)
+
+
+@dataclass(frozen=True)
+class BandGapChannel:
+    """Band-gap details for a single spin channel."""
+
+    spin: str
+    gap_ev: float
+    vbm_ev: float
+    cbm_ev: float
+    is_direct: bool
+    kpoint_index_vbm: int
+    kpoint_index_cbm: int
+    is_metal: bool
+
+
+@dataclass(frozen=True)
+class BandGapSummary:
+    """Fundamental band-gap summary derived from EIGENVAL."""
+
+    is_spin_polarized: bool
+    is_metal: bool
+    fundamental_gap_ev: float
+    vbm_ev: float
+    cbm_ev: float
+    is_direct: bool
+    channel: str
+    channels: tuple[BandGapChannel, ...] = field(default_factory=tuple)
+
+
+@dataclass(frozen=True)
+class DosMetadata:
+    """Total DOS metadata derived from DOSCAR."""
+
+    energy_min_ev: float
+    energy_max_ev: float
+    nedos: int
+    efermi_ev: float
+    is_spin_polarized: bool
+    has_integrated_dos: bool
+    energy_step_ev: float | None
+    total_dos_at_fermi: float | None
+
+
+@dataclass(frozen=True)
+class ElectronicStructureMetadata:
+    """Combined electronic metadata extracted from standard VASP outputs."""
+
+    eigenval_path: str | None
+    doscar_path: str | None
+    band_gap: BandGapSummary | None
+    dos_metadata: DosMetadata | None
     warnings: tuple[str, ...] = field(default_factory=tuple)

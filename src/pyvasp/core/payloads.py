@@ -3,12 +3,32 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+import re
 from pathlib import Path
 from typing import Any
 
 from pyvasp.core.errors import ValidationError
-from pyvasp.core.models import OutcarDiagnostics, OutcarSummary, StressTensor
-from pyvasp.core.validators import validate_outcar_path
+from pyvasp.core.models import (
+    BandGapSummary,
+    ConvergenceProfile,
+    DosMetadata,
+    ElectronicStructureMetadata,
+    GeneratedInputBundle,
+    OutcarDiagnostics,
+    OutcarSummary,
+    RelaxInputSpec,
+    RelaxStructure,
+    StressTensor,
+    StructureAtom,
+)
+from pyvasp.core.validators import validate_file_path, validate_outcar_path
+
+try:  # pragma: no cover - import guarded for portability
+    from ase.data import atomic_numbers as ASE_ATOMIC_NUMBERS
+except Exception:  # pragma: no cover - fallback when ASE is unavailable
+    ASE_ATOMIC_NUMBERS = {}
+
+ELEMENT_RE = re.compile(r"^[A-Z][a-z]?$")
 
 
 @dataclass(frozen=True)
@@ -57,6 +77,145 @@ class DiagnosticsRequestPayload:
 
     def validated_path(self) -> Path:
         return validate_outcar_path(self.outcar_path)
+
+
+@dataclass(frozen=True)
+class ConvergenceProfileRequestPayload:
+    """Canonical request payload for OUTCAR convergence profile."""
+
+    outcar_path: str
+
+    @classmethod
+    def from_mapping(cls, raw: dict[str, Any]) -> "ConvergenceProfileRequestPayload":
+        path_value = raw.get("outcar_path")
+        resolved = validate_outcar_path(str(path_value) if path_value is not None else "")
+        return cls(outcar_path=str(resolved))
+
+    def validated_path(self) -> Path:
+        return validate_outcar_path(self.outcar_path)
+
+
+@dataclass(frozen=True)
+class ElectronicMetadataRequestPayload:
+    """Canonical request payload for EIGENVAL/DOSCAR metadata parsing."""
+
+    eigenval_path: str | None = None
+    doscar_path: str | None = None
+
+    @classmethod
+    def from_mapping(cls, raw: dict[str, Any]) -> "ElectronicMetadataRequestPayload":
+        eigenval = _parse_optional_file(
+            raw.get("eigenval_path"),
+            field_name="eigenval_path",
+            label="EIGENVAL",
+        )
+        doscar = _parse_optional_file(
+            raw.get("doscar_path"),
+            field_name="doscar_path",
+            label="DOSCAR",
+        )
+
+        if eigenval is None and doscar is None:
+            raise ValidationError("At least one of eigenval_path or doscar_path must be provided")
+
+        return cls(eigenval_path=eigenval, doscar_path=doscar)
+
+    def validated_paths(self) -> tuple[Path | None, Path | None]:
+        eigenval = None if self.eigenval_path is None else validate_file_path(
+            self.eigenval_path,
+            field_name="eigenval_path",
+            label="EIGENVAL",
+        )
+        doscar = None if self.doscar_path is None else validate_file_path(
+            self.doscar_path,
+            field_name="doscar_path",
+            label="DOSCAR",
+        )
+        return (eigenval, doscar)
+
+
+@dataclass(frozen=True)
+class GenerateRelaxInputRequestPayload:
+    """Canonical request payload for VASP relaxation input generation."""
+
+    structure: RelaxStructure
+    kmesh: tuple[int, int, int] = (6, 6, 6)
+    gamma_centered: bool = True
+    encut: int = 520
+    ediff: float = 1e-5
+    ediffg: float = -0.02
+    ismear: int = 0
+    sigma: float = 0.05
+    ibrion: int = 2
+    isif: int = 3
+    nsw: int = 120
+    ispin: int = 2
+    magmom: str | None = None
+    incar_overrides: tuple[tuple[str, Any], ...] = ()
+
+    @classmethod
+    def from_mapping(cls, raw: dict[str, Any]) -> "GenerateRelaxInputRequestPayload":
+        structure = _parse_structure(raw.get("structure"))
+        kmesh = _parse_kmesh(raw.get("kmesh", (6, 6, 6)))
+
+        encut = _coerce_positive_int(raw.get("encut", 520), "encut")
+        ediff = _coerce_positive_float(raw.get("ediff", 1e-5), "ediff")
+        ediffg = _coerce_float(raw.get("ediffg", -0.02), "ediffg")
+        ismear = _coerce_int(raw.get("ismear", 0), "ismear")
+        sigma = _coerce_positive_float(raw.get("sigma", 0.05), "sigma")
+        ibrion = _coerce_int(raw.get("ibrion", 2), "ibrion")
+        isif = _coerce_int(raw.get("isif", 3), "isif")
+        nsw = _coerce_positive_int(raw.get("nsw", 120), "nsw")
+        ispin = _coerce_int(raw.get("ispin", 2), "ispin")
+
+        if ispin not in (1, 2):
+            raise ValidationError("ispin must be 1 or 2")
+
+        magmom = raw.get("magmom")
+        if magmom is not None:
+            magmom = str(magmom).strip() or None
+
+        overrides_raw = raw.get("incar_overrides") or {}
+        if not isinstance(overrides_raw, dict):
+            raise ValidationError("incar_overrides must be an object/map")
+        overrides = tuple((str(key).upper(), value) for key, value in sorted(overrides_raw.items()))
+
+        return cls(
+            structure=structure,
+            kmesh=kmesh,
+            gamma_centered=bool(raw.get("gamma_centered", True)),
+            encut=encut,
+            ediff=ediff,
+            ediffg=ediffg,
+            ismear=ismear,
+            sigma=sigma,
+            ibrion=ibrion,
+            isif=isif,
+            nsw=nsw,
+            ispin=ispin,
+            magmom=magmom,
+            incar_overrides=overrides,
+        )
+
+    def to_spec(self) -> RelaxInputSpec:
+        """Convert request payload into domain generation spec."""
+
+        return RelaxInputSpec(
+            structure=self.structure,
+            kmesh=self.kmesh,
+            gamma_centered=self.gamma_centered,
+            encut=self.encut,
+            ediff=self.ediff,
+            ediffg=self.ediffg,
+            ismear=self.ismear,
+            sigma=self.sigma,
+            ibrion=self.ibrion,
+            isif=self.isif,
+            nsw=self.nsw,
+            ispin=self.ispin,
+            magmom=self.magmom,
+            incar_overrides=dict(self.incar_overrides),
+        )
 
 
 @dataclass(frozen=True)
@@ -165,6 +324,101 @@ class DiagnosticsResponsePayload:
         return mapped
 
 
+@dataclass(frozen=True)
+class ConvergenceProfileResponsePayload:
+    """Canonical convergence-profile response consumed by adapters."""
+
+    source_path: str
+    points: tuple[dict[str, Any], ...]
+    final_total_energy_ev: float | None
+    max_force_ev_per_a: float | None
+    warnings: tuple[str, ...]
+
+    @classmethod
+    def from_profile(
+        cls,
+        profile: ConvergenceProfile,
+        *,
+        summary: OutcarSummary,
+    ) -> "ConvergenceProfileResponsePayload":
+        points = tuple(
+            {
+                "ionic_step": point.ionic_step,
+                "total_energy_ev": point.total_energy_ev,
+                "delta_energy_ev": point.delta_energy_ev,
+                "relative_energy_ev": point.relative_energy_ev,
+            }
+            for point in profile.points
+        )
+        return cls(
+            source_path=summary.source_path,
+            points=points,
+            final_total_energy_ev=summary.final_total_energy_ev,
+            max_force_ev_per_a=summary.max_force_ev_per_a,
+            warnings=summary.warnings,
+        )
+
+    def to_mapping(self) -> dict[str, Any]:
+        mapped = asdict(self)
+        mapped["warnings"] = list(self.warnings)
+        mapped["points"] = list(self.points)
+        return mapped
+
+
+@dataclass(frozen=True)
+class ElectronicMetadataResponsePayload:
+    """Canonical EIGENVAL/DOSCAR metadata response consumed by adapters."""
+
+    eigenval_path: str | None
+    doscar_path: str | None
+    band_gap: dict[str, Any] | None
+    dos_metadata: dict[str, Any] | None
+    warnings: tuple[str, ...]
+
+    @classmethod
+    def from_metadata(cls, metadata: ElectronicStructureMetadata) -> "ElectronicMetadataResponsePayload":
+        return cls(
+            eigenval_path=metadata.eigenval_path,
+            doscar_path=metadata.doscar_path,
+            band_gap=_serialize_band_gap(metadata.band_gap),
+            dos_metadata=_serialize_dos_metadata(metadata.dos_metadata),
+            warnings=metadata.warnings,
+        )
+
+    def to_mapping(self) -> dict[str, Any]:
+        mapped = asdict(self)
+        mapped["warnings"] = list(self.warnings)
+        return mapped
+
+
+@dataclass(frozen=True)
+class GenerateRelaxInputResponsePayload:
+    """Canonical generated-input response consumed by adapters."""
+
+    system_name: str
+    n_atoms: int
+    incar_text: str
+    kpoints_text: str
+    poscar_text: str
+    warnings: tuple[str, ...]
+
+    @classmethod
+    def from_bundle(cls, bundle: GeneratedInputBundle) -> "GenerateRelaxInputResponsePayload":
+        return cls(
+            system_name=bundle.system_name,
+            n_atoms=bundle.n_atoms,
+            incar_text=bundle.incar_text,
+            kpoints_text=bundle.kpoints_text,
+            poscar_text=bundle.poscar_text,
+            warnings=bundle.warnings,
+        )
+
+    def to_mapping(self) -> dict[str, Any]:
+        mapped = asdict(self)
+        mapped["warnings"] = list(self.warnings)
+        return mapped
+
+
 def validate_summary_request(raw: dict[str, Any]) -> SummaryRequestPayload:
     """Map arbitrary adapter payload into canonical summary request object."""
 
@@ -181,6 +435,39 @@ def validate_diagnostics_request(raw: dict[str, Any]) -> DiagnosticsRequestPaylo
 
     try:
         return DiagnosticsRequestPayload.from_mapping(raw)
+    except ValidationError:
+        raise
+    except Exception as exc:  # pragma: no cover - defensive normalization
+        raise ValidationError(str(exc)) from exc
+
+
+def validate_convergence_profile_request(raw: dict[str, Any]) -> ConvergenceProfileRequestPayload:
+    """Map arbitrary adapter payload into canonical convergence-profile request."""
+
+    try:
+        return ConvergenceProfileRequestPayload.from_mapping(raw)
+    except ValidationError:
+        raise
+    except Exception as exc:  # pragma: no cover - defensive normalization
+        raise ValidationError(str(exc)) from exc
+
+
+def validate_electronic_metadata_request(raw: dict[str, Any]) -> ElectronicMetadataRequestPayload:
+    """Map arbitrary adapter payload into canonical electronic metadata request."""
+
+    try:
+        return ElectronicMetadataRequestPayload.from_mapping(raw)
+    except ValidationError:
+        raise
+    except Exception as exc:  # pragma: no cover - defensive normalization
+        raise ValidationError(str(exc)) from exc
+
+
+def validate_generate_relax_input_request(raw: dict[str, Any]) -> GenerateRelaxInputRequestPayload:
+    """Map arbitrary adapter payload into canonical relaxation-input request."""
+
+    try:
+        return GenerateRelaxInputRequestPayload.from_mapping(raw)
     except ValidationError:
         raise
     except Exception as exc:  # pragma: no cover - defensive normalization
@@ -210,6 +497,141 @@ def _serialize_magnetization(diagnostics: OutcarDiagnostics) -> dict[str, Any] |
     }
 
 
+def _serialize_band_gap(summary: BandGapSummary | None) -> dict[str, Any] | None:
+    if summary is None:
+        return None
+
+    channels = [
+        {
+            "spin": channel.spin,
+            "gap_ev": channel.gap_ev,
+            "vbm_ev": channel.vbm_ev,
+            "cbm_ev": channel.cbm_ev,
+            "is_direct": channel.is_direct,
+            "kpoint_index_vbm": channel.kpoint_index_vbm,
+            "kpoint_index_cbm": channel.kpoint_index_cbm,
+            "is_metal": channel.is_metal,
+        }
+        for channel in summary.channels
+    ]
+
+    return {
+        "is_spin_polarized": summary.is_spin_polarized,
+        "is_metal": summary.is_metal,
+        "fundamental_gap_ev": summary.fundamental_gap_ev,
+        "vbm_ev": summary.vbm_ev,
+        "cbm_ev": summary.cbm_ev,
+        "is_direct": summary.is_direct,
+        "channel": summary.channel,
+        "channels": channels,
+    }
+
+
+def _serialize_dos_metadata(metadata: DosMetadata | None) -> dict[str, Any] | None:
+    if metadata is None:
+        return None
+
+    return {
+        "energy_min_ev": metadata.energy_min_ev,
+        "energy_max_ev": metadata.energy_max_ev,
+        "nedos": metadata.nedos,
+        "efermi_ev": metadata.efermi_ev,
+        "is_spin_polarized": metadata.is_spin_polarized,
+        "has_integrated_dos": metadata.has_integrated_dos,
+        "energy_step_ev": metadata.energy_step_ev,
+        "total_dos_at_fermi": metadata.total_dos_at_fermi,
+    }
+
+
+def _parse_structure(raw: Any) -> RelaxStructure:
+    if not isinstance(raw, dict):
+        raise ValidationError("structure must be an object/map")
+
+    comment = str(raw.get("comment", "Generated by pyVASP")).strip()
+    if not comment:
+        comment = "Generated by pyVASP"
+
+    vectors_raw = raw.get("lattice_vectors")
+    if not isinstance(vectors_raw, (list, tuple)) or len(vectors_raw) != 3:
+        raise ValidationError("structure.lattice_vectors must contain exactly 3 vectors")
+
+    vectors: list[tuple[float, float, float]] = []
+    for idx, vector in enumerate(vectors_raw, start=1):
+        vectors.append(_parse_vec3(vector, f"structure.lattice_vectors[{idx}]"))
+
+    atoms_raw = raw.get("atoms")
+    if not isinstance(atoms_raw, (list, tuple)) or not atoms_raw:
+        raise ValidationError("structure.atoms must be a non-empty list")
+
+    atoms: list[StructureAtom] = []
+    for idx, atom_raw in enumerate(atoms_raw, start=1):
+        if not isinstance(atom_raw, dict):
+            raise ValidationError(f"structure.atoms[{idx}] must be an object")
+
+        element = _normalize_element(str(atom_raw.get("element", "")))
+        _validate_element(element)
+        frac = _parse_vec3(atom_raw.get("frac_coords"), f"structure.atoms[{idx}].frac_coords")
+
+        atoms.append(StructureAtom(element=element, frac_coords=frac))
+
+    return RelaxStructure(
+        comment=comment,
+        lattice_vectors=(vectors[0], vectors[1], vectors[2]),
+        atoms=tuple(atoms),
+    )
+
+
+def _parse_kmesh(raw: Any) -> tuple[int, int, int]:
+    if not isinstance(raw, (list, tuple)) or len(raw) != 3:
+        raise ValidationError("kmesh must contain exactly 3 integers")
+
+    values = []
+    for idx, value in enumerate(raw, start=1):
+        parsed = _coerce_positive_int(value, f"kmesh[{idx}]")
+        values.append(parsed)
+    return (values[0], values[1], values[2])
+
+
+def _parse_vec3(raw: Any, field_name: str) -> tuple[float, float, float]:
+    if not isinstance(raw, (list, tuple)) or len(raw) != 3:
+        raise ValidationError(f"{field_name} must contain exactly 3 numbers")
+
+    try:
+        x, y, z = float(raw[0]), float(raw[1]), float(raw[2])
+    except (TypeError, ValueError) as exc:
+        raise ValidationError(f"{field_name} must contain numeric values") from exc
+
+    return (x, y, z)
+
+
+def _parse_optional_file(value: Any, *, field_name: str, label: str) -> str | None:
+    if value is None:
+        return None
+
+    string_value = str(value).strip()
+    if not string_value:
+        return None
+
+    validated = validate_file_path(string_value, field_name=field_name, label=label)
+    return str(validated)
+
+
+def _normalize_element(raw: str) -> str:
+    token = raw.strip()
+    if not token:
+        return token
+    if len(token) == 1:
+        return token.upper()
+    return token[0].upper() + token[1:].lower()
+
+
+def _validate_element(element: str) -> None:
+    if not ELEMENT_RE.match(element):
+        raise ValidationError(f"Invalid element symbol: {element}")
+    if ASE_ATOMIC_NUMBERS and element not in ASE_ATOMIC_NUMBERS:
+        raise ValidationError(f"Unknown element symbol: {element}")
+
+
 def _coerce_positive_float(value: Any, field_name: str) -> float:
     try:
         number = float(value)
@@ -219,3 +641,28 @@ def _coerce_positive_float(value: Any, field_name: str) -> float:
     if number <= 0:
         raise ValidationError(f"{field_name} must be > 0")
     return number
+
+
+def _coerce_float(value: Any, field_name: str) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValidationError(f"{field_name} must be numeric") from exc
+
+
+def _coerce_positive_int(value: Any, field_name: str) -> int:
+    try:
+        number = int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValidationError(f"{field_name} must be an integer > 0") from exc
+
+    if number <= 0:
+        raise ValidationError(f"{field_name} must be > 0")
+    return number
+
+
+def _coerce_int(value: Any, field_name: str) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValidationError(f"{field_name} must be an integer") from exc

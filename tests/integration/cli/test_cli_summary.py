@@ -8,6 +8,9 @@ from pyvasp.cli.main import main
 
 FIXTURE = Path(__file__).resolve().parents[2] / "fixtures" / "OUTCAR.sample"
 FIXTURE_PHASE2 = Path(__file__).resolve().parents[2] / "fixtures" / "OUTCAR.phase2.sample"
+STRUCTURE_FIXTURE = Path(__file__).resolve().parents[2] / "fixtures" / "structure.si2.json"
+EIGENVAL_FIXTURE = Path(__file__).resolve().parents[2] / "fixtures" / "EIGENVAL.sample"
+DOSCAR_FIXTURE = Path(__file__).resolve().parents[2] / "fixtures" / "DOSCAR.sample"
 
 
 def test_cli_summary_direct_mode(capsys) -> None:
@@ -27,6 +30,57 @@ def test_cli_diagnostics_direct_mode(capsys) -> None:
     payload = json.loads(captured.out)
     assert payload["convergence"]["is_converged"] is True
     assert payload["external_pressure_kb"] == -1.23
+
+
+def test_cli_convergence_profile_direct_mode(capsys) -> None:
+    exit_code = main(["convergence-profile", str(FIXTURE), "--mode", "direct"])
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    payload = json.loads(captured.out)
+    assert len(payload["points"]) == 2
+
+
+def test_cli_electronic_metadata_direct_mode(capsys) -> None:
+    exit_code = main(
+        [
+            "electronic-metadata",
+            "--eigenval-path",
+            str(EIGENVAL_FIXTURE),
+            "--doscar-path",
+            str(DOSCAR_FIXTURE),
+            "--mode",
+            "direct",
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    payload = json.loads(captured.out)
+    assert payload["band_gap"]["fundamental_gap_ev"] == 1.3
+    assert payload["dos_metadata"]["nedos"] == 5
+
+
+def test_cli_generate_relax_input_and_write_files(tmp_path: Path, capsys) -> None:
+    output_dir = tmp_path / "vasp_inputs"
+    exit_code = main(
+        [
+            "generate-relax-input",
+            str(STRUCTURE_FIXTURE),
+            "--mode",
+            "direct",
+            "--output-dir",
+            str(output_dir),
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    payload = json.loads(captured.out)
+    assert payload["n_atoms"] == 2
+    assert (output_dir / "INCAR").exists()
+    assert (output_dir / "KPOINTS").exists()
+    assert (output_dir / "POSCAR").exists()
 
 
 def test_cli_summary_missing_file_fails(capsys) -> None:

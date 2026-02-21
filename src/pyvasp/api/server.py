@@ -5,23 +5,42 @@ from __future__ import annotations
 from fastapi import FastAPI
 
 from pyvasp.api.routes import create_router
-from pyvasp.application.use_cases import DiagnoseOutcarUseCase, SummarizeOutcarUseCase
+from pyvasp.application.use_cases import (
+    BuildConvergenceProfileUseCase,
+    DiagnoseOutcarUseCase,
+    GenerateRelaxInputUseCase,
+    ParseElectronicMetadataUseCase,
+    SummarizeOutcarUseCase,
+)
+from pyvasp.electronic.parser import ElectronicParser
+from pyvasp.inputgen.generator import RelaxInputGenerator
 from pyvasp.outcar.parser import OutcarParser
 
 
 def create_app() -> FastAPI:
     """Create configured FastAPI application instance."""
 
-    parser = OutcarParser()
-    summary_use_case = SummarizeOutcarUseCase(reader=parser)
-    diagnostics_use_case = DiagnoseOutcarUseCase(reader=parser)
+    outcar_parser = OutcarParser()
+    summary_use_case = SummarizeOutcarUseCase(reader=outcar_parser)
+    diagnostics_use_case = DiagnoseOutcarUseCase(reader=outcar_parser)
+    profile_use_case = BuildConvergenceProfileUseCase(reader=outcar_parser)
+    electronic_use_case = ParseElectronicMetadataUseCase(reader=ElectronicParser())
+    relax_input_use_case = GenerateRelaxInputUseCase(builder=RelaxInputGenerator())
 
     app = FastAPI(
         title="pyVASP API",
         version="0.1.0",
-        description="Layered API for VASP OUTCAR post-processing and visualization backends.",
+        description="Layered API for VASP input generation and post-processing workflows.",
     )
-    app.include_router(create_router(summary_use_case, diagnostics_use_case))
+    app.include_router(
+        create_router(
+            summary_use_case,
+            diagnostics_use_case,
+            profile_use_case,
+            electronic_use_case,
+            relax_input_use_case,
+        )
+    )
 
     return app
 

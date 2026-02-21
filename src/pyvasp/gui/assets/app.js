@@ -16,17 +16,48 @@ form.addEventListener("submit", async (event) => {
   event.preventDefault();
 
   const operation = document.getElementById("operation").value;
-  const payload = {
-    outcar_path: document.getElementById("outcar_path").value,
-  };
+  const outcarPath = document.getElementById("outcar_path").value;
+  const includeHistory = document.getElementById("include_history").checked;
 
   let endpoint = "/ui/summary";
-  if (operation === "summary") {
-    payload.include_history = document.getElementById("include_history").checked;
-  } else {
+  let payload = { outcar_path: outcarPath, include_history: includeHistory };
+
+  if (operation === "diagnostics") {
     endpoint = "/ui/diagnostics";
-    payload.energy_tolerance_ev = Number(document.getElementById("energy_tol").value);
-    payload.force_tolerance_ev_per_a = Number(document.getElementById("force_tol").value);
+    payload = {
+      outcar_path: outcarPath,
+      energy_tolerance_ev: Number(document.getElementById("energy_tol").value),
+      force_tolerance_ev_per_a: Number(document.getElementById("force_tol").value),
+    };
+  } else if (operation === "convergence_profile") {
+    endpoint = "/ui/convergence-profile";
+    payload = { outcar_path: outcarPath };
+  } else if (operation === "electronic_metadata") {
+    endpoint = "/ui/electronic-metadata";
+    payload = {
+      eigenval_path: document.getElementById("eigenval_path").value || null,
+      doscar_path: document.getElementById("doscar_path").value || null,
+    };
+  } else if (operation === "generate_relax_input") {
+    endpoint = "/ui/generate-relax-input";
+
+    let structure;
+    try {
+      structure = JSON.parse(document.getElementById("structure_json").value);
+    } catch (error) {
+      resultEl.textContent = JSON.stringify({ error: `Invalid structure JSON: ${error}` }, null, 2);
+      return;
+    }
+
+    payload = {
+      structure,
+      kmesh: [
+        Number(document.getElementById("kmesh_x").value),
+        Number(document.getElementById("kmesh_y").value),
+        Number(document.getElementById("kmesh_z").value),
+      ],
+      gamma_centered: document.getElementById("gamma_centered").checked,
+    };
   }
 
   resultEl.textContent = "Running...";

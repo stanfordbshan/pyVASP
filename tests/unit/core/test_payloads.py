@@ -1,13 +1,19 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
 
 from pyvasp.core.errors import ValidationError
 from pyvasp.core.models import (
+    BandGapChannel,
+    BandGapSummary,
     ConvergenceReport,
+    DosMetadata,
+    ElectronicStructureMetadata,
     EnergyPoint,
+    GeneratedInputBundle,
     MagnetizationSummary,
     OutcarDiagnostics,
     OutcarSummary,
@@ -15,13 +21,20 @@ from pyvasp.core.models import (
 )
 from pyvasp.core.payloads import (
     DiagnosticsResponsePayload,
+    ElectronicMetadataResponsePayload,
+    GenerateRelaxInputResponsePayload,
     SummaryResponsePayload,
     validate_diagnostics_request,
+    validate_electronic_metadata_request,
+    validate_generate_relax_input_request,
     validate_summary_request,
 )
 
 
 FIXTURE = Path(__file__).resolve().parents[2] / "fixtures" / "OUTCAR.sample"
+STRUCTURE_FIXTURE = Path(__file__).resolve().parents[2] / "fixtures" / "structure.si2.json"
+EIGENVAL_FIXTURE = Path(__file__).resolve().parents[2] / "fixtures" / "EIGENVAL.sample"
+DOSCAR_FIXTURE = Path(__file__).resolve().parents[2] / "fixtures" / "DOSCAR.sample"
 
 
 def test_validate_summary_request_success() -> None:
@@ -44,6 +57,40 @@ def test_validate_diagnostics_request_rejects_non_positive_tolerances() -> None:
                 "force_tolerance_ev_per_a": 0.02,
             }
         )
+
+
+def test_validate_electronic_metadata_request_success() -> None:
+    payload = validate_electronic_metadata_request(
+        {
+            "eigenval_path": str(EIGENVAL_FIXTURE),
+            "doscar_path": str(DOSCAR_FIXTURE),
+        }
+    )
+
+    assert payload.eigenval_path == str(EIGENVAL_FIXTURE)
+    assert payload.doscar_path == str(DOSCAR_FIXTURE)
+
+
+def test_validate_electronic_metadata_request_requires_one_file() -> None:
+    with pytest.raises(ValidationError):
+        validate_electronic_metadata_request({})
+
+
+def test_validate_generate_relax_input_request_success() -> None:
+    structure = json.loads(STRUCTURE_FIXTURE.read_text(encoding="utf-8"))
+    payload = validate_generate_relax_input_request({"structure": structure, "kmesh": [4, 4, 4]})
+
+    assert payload.structure.comment == "Si2 cubic"
+    assert payload.kmesh == (4, 4, 4)
+    assert len(payload.structure.atoms) == 2
+
+
+def test_validate_generate_relax_input_request_bad_element() -> None:
+    structure = json.loads(STRUCTURE_FIXTURE.read_text(encoding="utf-8"))
+    structure["atoms"][0]["element"] = "Xx"
+
+    with pytest.raises(ValidationError):
+        validate_generate_relax_input_request({"structure": structure})
 
 
 def test_summary_response_payload_hides_history_when_not_requested() -> None:
@@ -105,3 +152,66 @@ def test_diagnostics_response_payload_serialization() -> None:
     assert mapped["magnetization"]["site_moments_mu_b"] == [1.1, -0.8]
     assert mapped["convergence"]["is_converged"] is True
     assert mapped["warnings"] == ["ok"]
+
+
+def test_electronic_metadata_response_serialization() -> None:
+    metadata = ElectronicStructureMetadata(
+        eigenval_path=str(EIGENVAL_FIXTURE),
+        doscar_path=str(DOSCAR_FIXTURE),
+        band_gap=BandGapSummary(
+            is_spin_polarized=False,
+            is_metal=False,
+            fundamental_gap_ev=1.3,
+            vbm_ev=-0.5,
+            cbm_ev=0.8,
+            is_direct=True,
+            channel="total",
+            channels=(
+                BandGapChannel(
+                    spin="total",
+                    gap_ev=1.3,
+                    vbm_ev=-0.5,
+                    cbm_ev=0.8,
+                    is_direct=True,
+                    kpoint_index_vbm=2,
+                    kpoint_index_cbm=2,
+                    is_metal=False,
+                ),
+            ),
+        ),
+        dos_metadata=DosMetadata(
+            energy_min_ev=-5.0,
+            energy_max_ev=5.0,
+            nedos=5,
+            efermi_ev=0.5,
+            is_spin_polarized=False,
+            has_integrated_dos=True,
+            energy_step_ev=3.0,
+            total_dos_at_fermi=0.4,
+        ),
+        warnings=("ok",),
+    )
+
+    payload = ElectronicMetadataResponsePayload.from_metadata(metadata)
+    mapped = payload.to_mapping()
+
+    assert mapped["band_gap"]["fundamental_gap_ev"] == pytest.approx(1.3)
+    assert mapped["dos_metadata"]["nedos"] == 5
+    assert mapped["warnings"] == ["ok"]
+
+
+def test_generate_relax_input_response_payload() -> None:
+    bundle = GeneratedInputBundle(
+        system_name="Si2",
+        n_atoms=2,
+        incar_text="ENCUT = 520\n",
+        kpoints_text="Automatic mesh\n",
+        poscar_text="Si2\n",
+        warnings=("none",),
+    )
+
+    payload = GenerateRelaxInputResponsePayload.from_bundle(bundle)
+    mapped = payload.to_mapping()
+    assert mapped["system_name"] == "Si2"
+    assert mapped["n_atoms"] == 2
+    assert mapped["warnings"] == ["none"]

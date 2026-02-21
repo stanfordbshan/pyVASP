@@ -8,7 +8,7 @@
   </head>
   <body>
     <main class="panel">
-      <h1>pyVASP OUTCAR Tools</h1>
+      <h1>pyVASP OUTCAR + Input Tools</h1>
       <p id="mode-label" class="muted"></p>
 
       <form id="run-form">
@@ -16,10 +16,19 @@
         <select id="operation" name="operation">
           <option value="summary">Summary</option>
           <option value="diagnostics">Diagnostics</option>
+          <option value="convergence_profile">Convergence Profile</option>
+          <option value="electronic_metadata">Electronic Metadata</option>
+          <option value="generate_relax_input">Generate Relax Input</option>
         </select>
 
         <label for="outcar_path">OUTCAR Path</label>
-        <input id="outcar_path" name="outcar_path" type="text" placeholder="/path/to/OUTCAR" required />
+        <input id="outcar_path" name="outcar_path" type="text" placeholder="/path/to/OUTCAR" />
+
+        <label for="eigenval_path">EIGENVAL Path</label>
+        <input id="eigenval_path" name="eigenval_path" type="text" placeholder="/path/to/EIGENVAL" />
+
+        <label for="doscar_path">DOSCAR Path</label>
+        <input id="doscar_path" name="doscar_path" type="text" placeholder="/path/to/DOSCAR" />
 
         <label class="checkbox">
           <input id="include_history" name="include_history" type="checkbox" />
@@ -36,6 +45,37 @@
             <input id="force_tol" name="force_tol" type="number" step="any" value="0.02" />
           </div>
         </div>
+
+        <h2>Relax Input Params</h2>
+        <label for="structure_json">Structure JSON</label>
+        <textarea id="structure_json" name="structure_json" rows="9">{
+  "comment": "Si2",
+  "lattice_vectors": [[5.43, 0, 0], [0, 5.43, 0], [0, 0, 5.43]],
+  "atoms": [
+    {"element": "Si", "frac_coords": [0, 0, 0]},
+    {"element": "Si", "frac_coords": [0.25, 0.25, 0.25]}
+  ]
+}</textarea>
+
+        <div class="grid-three">
+          <div>
+            <label for="kmesh_x">KX</label>
+            <input id="kmesh_x" type="number" value="6" />
+          </div>
+          <div>
+            <label for="kmesh_y">KY</label>
+            <input id="kmesh_y" type="number" value="6" />
+          </div>
+          <div>
+            <label for="kmesh_z">KZ</label>
+            <input id="kmesh_z" type="number" value="6" />
+          </div>
+        </div>
+
+        <label class="checkbox">
+          <input id="gamma_centered" name="gamma_centered" type="checkbox" checked />
+          Gamma-centered k-mesh
+        </label>
 
         <button type="submit">Run</button>
       </form>

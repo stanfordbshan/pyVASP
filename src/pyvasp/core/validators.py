@@ -10,13 +10,19 @@ from pyvasp.core.errors import ValidationError
 def validate_outcar_path(path: str) -> Path:
     """Validate that OUTCAR input points to an existing readable file."""
 
+    return validate_file_path(path, field_name="outcar_path", label="OUTCAR")
+
+
+def validate_file_path(path: str, *, field_name: str, label: str) -> Path:
+    """Validate that a named file path points to an existing regular file."""
+
     if not isinstance(path, str) or not path.strip():
-        raise ValidationError("outcar_path must be a non-empty string")
+        raise ValidationError(f"{field_name} must be a non-empty string")
 
     candidate = Path(path).expanduser()
     if not candidate.exists():
-        raise ValidationError(f"OUTCAR file does not exist: {candidate}")
+        raise ValidationError(f"{label} file does not exist: {candidate}")
     if not candidate.is_file():
-        raise ValidationError(f"OUTCAR path is not a file: {candidate}")
+        raise ValidationError(f"{label} path is not a file: {candidate}")
 
     return candidate.resolve()

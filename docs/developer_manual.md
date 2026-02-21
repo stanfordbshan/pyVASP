@@ -1,6 +1,6 @@
 # pyVASP Developer Manual
 
-## 1. File Tree (Phase 2)
+## 1. File Tree (Phase 3 + Electronic Parsing)
 
 ```text
 pyVASP/
@@ -24,6 +24,12 @@ pyVASP/
       outcar/
         __init__.py
         parser.py
+      electronic/
+        __init__.py
+        parser.py
+      inputgen/
+        __init__.py
+        generator.py
       api/
         __init__.py
         schemas.py
@@ -45,6 +51,10 @@ pyVASP/
       OUTCAR.sample
       OUTCAR.phase2.sample
       OUTCAR.real.mmm-group
+      EIGENVAL.sample
+      DOSCAR.sample
+      DOSCAR.spin.sample
+      structure.si2.json
     unit/
       core/
         test_analysis.py
@@ -53,6 +63,10 @@ pyVASP/
         test_use_cases.py
       outcar/
         test_parser.py
+      electronic/
+        test_electronic_parser.py
+      inputgen/
+        test_generator.py
     integration/
       api/
         test_outcar_summary_api.py
@@ -68,74 +82,56 @@ pyVASP/
 ## 2. Layer Responsibilities
 
 ### core
-- Owns domain models (`OutcarSummary`, `OutcarObservables`, `OutcarDiagnostics`, `StressTensor`, `MagnetizationSummary`).
-- Owns input validation and shared payload mapping for both summary and diagnostics.
-- Owns convergence algorithm (`build_convergence_report`) with no transport dependencies.
+- Domain models for OUTCAR, electronic metadata, and input generation.
+- Shared payload mapping/validation for all adapter contracts.
+- Core analysis algorithms for convergence report/profile.
 
 ### application
-- Owns transport-agnostic use-cases:
+- Transport-agnostic use-cases:
   - `SummarizeOutcarUseCase`
   - `DiagnoseOutcarUseCase`
-- Depends only on parser ports, not on concrete API/GUI details.
+  - `BuildConvergenceProfileUseCase`
+  - `ParseElectronicMetadataUseCase`
+  - `GenerateRelaxInputUseCase`
 
-### outcar (method module)
-- Owns OUTCAR parsing routines.
-- Produces core models:
-  - summary extraction
-  - diagnostics observables extraction (pressure, stress, magnetization)
+### method modules
+- `outcar`: OUTCAR parsing.
+- `electronic`: `EIGENVAL`/`DOSCAR` parsing for band-gap and DOS metadata.
+- `inputgen`: INCAR/KPOINTS/POSCAR generation.
 
-### api
-- HTTP-only adapter (FastAPI).
-- Exposes endpoints and maps payloads through core validation/mapping:
-  - `/v1/outcar/summary`
-  - `/v1/outcar/diagnostics`
-
-### gui
-- UI-only adapter.
-- Bridge supports `direct/api/auto` for both summary and diagnostics.
-- Host exposes UI bridge routes:
-  - `/ui/summary`
-  - `/ui/diagnostics`
-
-### cli
-- Script-oriented adapter.
-- Subcommands:
-  - `summary`
-  - `diagnostics`
+### adapters
+- `api`: HTTP endpoints only.
+- `gui`: host + bridge for direct/api/auto execution.
+- `cli`: script-oriented command surface.
 
 ## 3. Dependency Rules
 
 Mandatory direction:
-- `api/gui/cli -> application -> core/outcar`
-- `outcar -> core`
-- `core` imports no adapter/framework modules
-
-Practical checks:
-- No `fastapi`, `uvicorn`, browser/static modules in `core` or `application`.
-- Keep transport schemas (`pydantic`) in adapter packages.
+- `api/gui/cli -> application -> core/outcar/electronic/inputgen`
+- `outcar/electronic/inputgen -> core`
+- `core` imports no API/UI framework modules
 
 ## 4. Shared Payload Contract Strategy
 
-`core/payloads.py` is canonical for adapter request/response mapping.
-- Summary:
-  - `validate_summary_request()`
-  - `SummaryResponsePayload.from_summary()`
-- Diagnostics:
-  - `validate_diagnostics_request()`
-  - `DiagnosticsResponsePayload.from_diagnostics()`
+`core/payloads.py` is canonical for request validation + response mapping.
 
-This prevents drift across API, GUI, and CLI response shapes.
+All adapter entry points call core validators first:
+- summary
+- diagnostics
+- convergence profile
+- electronic metadata
+- relaxation input generation
 
 ## 5. Extension Workflow
 
-1. Add/adjust domain models and algorithms in `core`.
-2. Add parser logic in a method module (`outcar`, future `dos`, `band`, etc.).
-3. Add port + use-case in `application`.
-4. Wire adapters (`api/gui/cli`) to new use-case.
-5. Add unit + integration coverage.
-6. Update manuals and README.
+1. Add domain model + validation in `core`.
+2. Add parsing/generation logic in a method module.
+3. Add use-case + port in `application`.
+4. Wire API/GUI/CLI adapters.
+5. Add unit + integration tests.
+6. Update docs.
 
 ## 6. Notes on Educational Clarity
 
-- Non-obvious parser logic (force/magnetization/stress extraction) is split into small helper methods.
-- Convergence policy is explicit and centralized in core.
+- Parsing logic is separated by output type (OUTCAR vs EIGENVAL/DOSCAR).
+- Adapter surfaces stay thin; orchestration and mapping happen in application/core.
