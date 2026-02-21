@@ -1,4 +1,0 @@
-[console_scripts]
-pyvasp-api = pyvasp.api.server:main
-pyvasp-cli = pyvasp.cli.main:main
-pyvasp-gui = pyvasp.gui.host:main
