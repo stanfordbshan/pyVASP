@@ -75,7 +75,25 @@
 
           <article id="page-batch" class="task-page" role="tabpanel">
             <h2>Batch Screening</h2>
-            <p class="muted">Process many run folders at once with per-row success/error results.</p>
+            <p class="muted">Discover and process many run folders at once with per-row success/error results.</p>
+            <label for="batch_root_dir">Batch Root Folder</label>
+            <div class="path-picker">
+              <input id="batch_root_dir" name="batch_root_dir" type="text" placeholder="/path/to/batch_root" />
+              <button id="pick_batch_root_dir" type="button" class="secondary">Browse Root</button>
+            </div>
+            <div class="grid-two">
+              <label class="checkbox">
+                <input id="batch_recursive" name="batch_recursive" type="checkbox" checked />
+                Recursive discovery
+              </label>
+              <div class="mini-grid">
+                <label for="batch_max_runs">Max discovered runs</label>
+                <input id="batch_max_runs" name="batch_max_runs" type="number" step="1" value="200" />
+              </div>
+            </div>
+            <div class="inline-actions">
+              <button type="button" data-action="discover_runs">Discover Runs From Root</button>
+            </div>
             <label for="batch_output_dirs">Batch Output Folders (one per line)</label>
             <textarea id="batch_output_dirs" name="batch_output_dirs" rows="7" placeholder="/path/run1&#10;/path/run2"></textarea>
             <div class="inline-actions">

@@ -30,6 +30,14 @@ class BatchDiagnosticsRequestSchema(BaseModel):
     fail_fast: bool = Field(default=False, description="Stop processing after the first failed item")
 
 
+class DiscoverOutcarRunsRequestSchema(BaseModel):
+    """Request payload for root-directory OUTCAR discovery endpoint."""
+
+    root_dir: str = Field(..., description="Root directory to scan for OUTCAR files")
+    recursive: bool = Field(default=True, description="Search recursively below root_dir")
+    max_runs: int = Field(default=200, description="Maximum number of discovered runs returned")
+
+
 class DiagnosticsRequestSchema(BaseModel):
     """Request payload for OUTCAR diagnostics endpoint."""
 
@@ -275,6 +283,19 @@ class BatchDiagnosticsResponseSchema(BaseModel):
     success_count: int
     error_count: int
     rows: list[BatchDiagnosticsRowSchema]
+
+
+class DiscoverOutcarRunsResponseSchema(BaseModel):
+    """Response schema for root-directory OUTCAR discovery endpoint."""
+
+    root_dir: str
+    recursive: bool
+    max_runs: int
+    total_discovered: int
+    returned_count: int
+    outcar_paths: list[str]
+    run_dirs: list[str]
+    warnings: list[str]
 
 
 class DiagnosticsResponseSchema(BaseModel):

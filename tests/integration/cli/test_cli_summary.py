@@ -11,6 +11,7 @@ FIXTURE_PHASE2 = Path(__file__).resolve().parents[2] / "fixtures" / "OUTCAR.phas
 STRUCTURE_FIXTURE = Path(__file__).resolve().parents[2] / "fixtures" / "structure.si2.json"
 EIGENVAL_FIXTURE = Path(__file__).resolve().parents[2] / "fixtures" / "EIGENVAL.sample"
 DOSCAR_FIXTURE = Path(__file__).resolve().parents[2] / "fixtures" / "DOSCAR.sample"
+DISCOVERY_ROOT_FIXTURE = Path(__file__).resolve().parents[2] / "fixtures" / "discovery_root"
 
 
 def test_cli_summary_direct_mode(capsys) -> None:
@@ -39,6 +40,25 @@ def test_cli_batch_summary_direct_mode(capsys) -> None:
     assert payload["total_count"] == 2
     assert payload["success_count"] == 1
     assert payload["error_count"] == 1
+
+
+def test_cli_discover_runs_direct_mode(capsys) -> None:
+    exit_code = main(
+        [
+            "discover-runs",
+            str(DISCOVERY_ROOT_FIXTURE),
+            "--mode",
+            "direct",
+            "--max-runs",
+            "10",
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    payload = json.loads(captured.out)
+    assert payload["total_discovered"] == 2
+    assert payload["returned_count"] == 2
 
 
 def test_cli_batch_diagnostics_direct_mode(capsys) -> None:

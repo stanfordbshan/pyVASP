@@ -1,7 +1,9 @@
 const modeLabel = document.getElementById("mode-label");
 const outputDirInput = document.getElementById("output_dir");
 const batchOutputDirsInput = document.getElementById("batch_output_dirs");
+const batchRootDirInput = document.getElementById("batch_root_dir");
 const pickOutputDirButton = document.getElementById("pick_output_dir");
+const pickBatchRootDirButton = document.getElementById("pick_batch_root_dir");
 const addBatchOutputDirButton = document.getElementById("add_batch_output_dir");
 const clearBatchOutputDirsButton = document.getElementById("clear_batch_output_dirs");
 
@@ -9,6 +11,8 @@ const includeHistoryInput = document.getElementById("include_history");
 const energyToleranceInput = document.getElementById("energy_tol");
 const forceToleranceInput = document.getElementById("force_tol");
 const batchFailFastInput = document.getElementById("batch_fail_fast");
+const batchRecursiveInput = document.getElementById("batch_recursive");
+const batchMaxRunsInput = document.getElementById("batch_max_runs");
 
 const parseEigenvalInput = document.getElementById("parse_eigenval");
 const parseDoscarInput = document.getElementById("parse_doscar");
@@ -36,6 +40,7 @@ const actionButtons = Array.from(document.querySelectorAll("[data-action]"));
 const STORAGE_KEYS = {
   outputDir: "pyvasp.ui.outputDir",
   batchDirs: "pyvasp.ui.batchDirs",
+  batchRootDir: "pyvasp.ui.batchRootDir",
   activePage: "pyvasp.ui.activePage",
 };
 
@@ -46,6 +51,7 @@ const ACTION_LABELS = {
   ionic_series: "Ionic Series",
   batch_summary: "Batch Summary",
   batch_diagnostics: "Batch Diagnostics",
+  discover_runs: "Discover Runs",
   electronic_metadata: "Electronic Metadata",
   dos_profile: "DOS Profile",
   export_tabular: "Export Tabular",
@@ -106,6 +112,15 @@ function bindEvents() {
     safeStorageSet(STORAGE_KEYS.outputDir, picked);
   });
 
+  pickBatchRootDirButton.addEventListener("click", async () => {
+    const picked = await tryPickFolder();
+    if (!picked) {
+      return;
+    }
+    batchRootDirInput.value = picked;
+    safeStorageSet(STORAGE_KEYS.batchRootDir, picked);
+  });
+
   addBatchOutputDirButton.addEventListener("click", async () => {
     const picked = await tryPickFolder();
     if (!picked) {
@@ -133,6 +148,10 @@ function bindEvents() {
     safeStorageSet(STORAGE_KEYS.batchDirs, batchOutputDirsInput.value);
   });
 
+  batchRootDirInput.addEventListener("change", () => {
+    safeStorageSet(STORAGE_KEYS.batchRootDir, batchRootDirInput.value.trim());
+  });
+
   for (const button of actionButtons) {
     button.addEventListener("click", async () => {
       const action = button.dataset.action || "";
@@ -150,6 +169,11 @@ function restorePersistedState() {
   const batchDirs = safeStorageGet(STORAGE_KEYS.batchDirs);
   if (batchDirs) {
     batchOutputDirsInput.value = batchDirs;
+  }
+
+  const batchRootDir = safeStorageGet(STORAGE_KEYS.batchRootDir);
+  if (batchRootDir) {
+    batchRootDirInput.value = batchRootDir;
   }
 
   const activePage = safeStorageGet(STORAGE_KEYS.activePage);
@@ -201,6 +225,9 @@ async function runAction(action, triggerButton) {
   try {
     const operation = buildOperationRequest(action);
     const response = await postJson(operation.endpoint, operation.payload);
+    if (action === "discover_runs") {
+      applyDiscoveredRunsToBatchList(response);
+    }
     renderResult(action, response);
     setStatus(`${label} completed successfully.`, "success");
   } catch (error) {
@@ -295,6 +322,21 @@ function buildOperationRequest(action) {
       payload: {
         outcar_paths: outcarPaths,
         fail_fast: batchFailFastInput.checked,
+      },
+    };
+  }
+
+  if (action === "discover_runs") {
+    const rootDir = batchRootDirInput.value.trim();
+    if (!rootDir) {
+      throw new UiInputError("Batch root folder is required for discovery.");
+    }
+    return {
+      endpoint: "/ui/discover-runs",
+      payload: {
+        root_dir: rootDir,
+        recursive: batchRecursiveInput.checked,
+        max_runs: readPositiveInteger(batchMaxRunsInput, "Max discovered runs"),
       },
     };
   }
@@ -397,6 +439,25 @@ function parseBatchDirectories(raw) {
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter((line) => line.length > 0);
+}
+
+function applyDiscoveredRunsToBatchList(response) {
+  if (!response || typeof response !== "object") {
+    return;
+  }
+
+  const runDirs = Array.isArray(response.run_dirs)
+    ? response.run_dirs
+    : (Array.isArray(response.outcar_paths)
+        ? response.outcar_paths.map((path) => String(path).replace(/[\\/]+OUTCAR$/i, ""))
+        : []);
+
+  const normalized = runDirs
+    .map((token) => String(token || "").trim())
+    .filter((token) => token.length > 0);
+
+  batchOutputDirsInput.value = normalized.join("\n");
+  safeStorageSet(STORAGE_KEYS.batchDirs, batchOutputDirsInput.value);
 }
 
 function parseStructureJson(raw) {
@@ -603,6 +664,10 @@ function buildRenderedResult(action, payload) {
 
   if (action === "batch_summary") {
     return renderBatchSummary(payload);
+  }
+
+  if (action === "discover_runs") {
+    return renderDiscoverRuns(payload);
   }
 
   if (action === "batch_diagnostics") {
@@ -889,6 +954,48 @@ function renderBatchSummary(data) {
       )
     );
     stack.appendChild(tableSection);
+  }
+
+  return stack;
+}
+
+function renderDiscoverRuns(data) {
+  const stack = createElement("div", "result-stack");
+  const runDirs = Array.isArray(data.run_dirs) ? data.run_dirs : [];
+  const outcarPaths = Array.isArray(data.outcar_paths) ? data.outcar_paths : [];
+
+  const overview = createSection("Run Discovery", data.root_dir || "");
+  overview.appendChild(
+    createMetricGrid([
+      { label: "Recursive", value: data.recursive ? "Yes" : "No" },
+      { label: "Max Returned", value: data.max_runs },
+      { label: "Total Discovered", value: data.total_discovered },
+      { label: "Returned", value: data.returned_count },
+    ])
+  );
+  appendWarnings(overview, data.warnings);
+  stack.appendChild(overview);
+
+  if (outcarPaths.length > 0) {
+    const tableSection = createSection("Discovered Runs", "These folders are now loaded in Batch Output Folders.");
+    const rows = outcarPaths.map((outcarPath, index) => ({
+      idx: index + 1,
+      run_dir: runDirs[index] || outcarPath,
+      outcar_path: outcarPath,
+    }));
+    tableSection.appendChild(
+      createTable(
+        [
+          { label: "#", value: (row) => row.idx },
+          { label: "Run Directory", value: (row) => row.run_dir },
+          { label: "OUTCAR Path", value: (row) => row.outcar_path },
+        ],
+        rows
+      )
+    );
+    stack.appendChild(tableSection);
+  } else {
+    stack.appendChild(createSection("No Runs Found", "No OUTCAR files were discovered with current settings."));
   }
 
   return stack;

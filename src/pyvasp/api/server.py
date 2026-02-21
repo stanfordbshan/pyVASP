@@ -12,6 +12,7 @@ from pyvasp.application.use_cases import (
     BuildDosProfileUseCase,
     BuildIonicSeriesUseCase,
     DiagnoseOutcarUseCase,
+    DiscoverOutcarRunsUseCase,
     ExportOutcarTabularUseCase,
     GenerateRelaxInputUseCase,
     ParseElectronicMetadataUseCase,
@@ -28,6 +29,7 @@ def create_app() -> FastAPI:
     outcar_parser = OutcarParser()
     electronic_parser = ElectronicParser()
     summary_use_case = SummarizeOutcarUseCase(reader=outcar_parser)
+    discover_outcar_runs_use_case = DiscoverOutcarRunsUseCase()
     batch_summary_use_case = BatchSummarizeOutcarUseCase(reader=outcar_parser)
     batch_diagnostics_use_case = BatchDiagnoseOutcarUseCase(reader=outcar_parser)
     diagnostics_use_case = DiagnoseOutcarUseCase(reader=outcar_parser)
@@ -49,6 +51,7 @@ def create_app() -> FastAPI:
     app.include_router(
         create_router(
             summary_use_case,
+            discover_outcar_runs_use_case,
             batch_summary_use_case,
             batch_diagnostics_use_case,
             diagnostics_use_case,

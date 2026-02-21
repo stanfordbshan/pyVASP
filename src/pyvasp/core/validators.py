@@ -38,3 +38,30 @@ def validate_file_path(path: str, *, field_name: str, label: str) -> Path:
         )
 
     return candidate.resolve()
+
+
+def validate_directory_path(path: str, *, field_name: str, label: str) -> Path:
+    """Validate that a named directory path points to an existing directory."""
+
+    if not isinstance(path, str) or not path.strip():
+        raise ValidationError(
+            f"{field_name} must be a non-empty string",
+            code=ErrorCode.VALIDATION_ERROR,
+            details={"field": field_name},
+        )
+
+    candidate = Path(path).expanduser()
+    if not candidate.exists():
+        raise ValidationError(
+            f"{label} does not exist: {candidate}",
+            code=ErrorCode.FILE_NOT_FOUND,
+            details={"field": field_name, "path": str(candidate)},
+        )
+    if not candidate.is_dir():
+        raise ValidationError(
+            f"{label} is not a directory: {candidate}",
+            code=ErrorCode.VALIDATION_ERROR,
+            details={"field": field_name, "path": str(candidate)},
+        )
+
+    return candidate.resolve()

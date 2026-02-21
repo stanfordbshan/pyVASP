@@ -9,6 +9,7 @@ from pyvasp.application.use_cases import (
     BuildDosProfileUseCase,
     BuildIonicSeriesUseCase,
     DiagnoseOutcarUseCase,
+    DiscoverOutcarRunsUseCase,
     ExportOutcarTabularUseCase,
     GenerateRelaxInputUseCase,
     ParseElectronicMetadataUseCase,
@@ -36,6 +37,7 @@ from pyvasp.core.payloads import (
     BatchDiagnosticsRequestPayload,
     BatchSummaryRequestPayload,
     ConvergenceProfileRequestPayload,
+    DiscoverOutcarRunsRequestPayload,
     DiagnosticsRequestPayload,
     DosProfileRequestPayload,
     ElectronicMetadataRequestPayload,
@@ -273,6 +275,52 @@ def test_batch_summary_use_case_fail_fast_stops_early() -> None:
     assert result.value.total_count == 1
     assert result.value.success_count == 0
     assert result.value.error_count == 1
+
+
+def test_discover_runs_use_case_recursive(tmp_path: Path) -> None:
+    run_a = tmp_path / "run_a"
+    run_b = tmp_path / "group" / "run_b"
+    run_a.mkdir(parents=True)
+    run_b.mkdir(parents=True)
+    (run_a / "OUTCAR").write_text(FIXTURE.read_text(encoding="utf-8"), encoding="utf-8")
+    (run_b / "OUTCAR").write_text(FIXTURE.read_text(encoding="utf-8"), encoding="utf-8")
+
+    use_case = DiscoverOutcarRunsUseCase()
+    request = DiscoverOutcarRunsRequestPayload(root_dir=str(tmp_path), recursive=True, max_runs=10)
+
+    result = use_case.execute(request)
+    assert result.ok is True
+    assert result.value is not None
+    assert result.value.total_discovered == 2
+    assert result.value.returned_count == 2
+    assert len(result.value.outcar_paths) == 2
+    assert any(Path(path).parent.name == "run_a" for path in result.value.outcar_paths)
+    assert any(Path(path).parent.name == "run_b" for path in result.value.outcar_paths)
+
+
+def test_discover_runs_use_case_non_recursive_and_truncated(tmp_path: Path) -> None:
+    run_a = tmp_path / "run_a"
+    run_b = tmp_path / "group" / "run_b"
+    run_a.mkdir(parents=True)
+    run_b.mkdir(parents=True)
+    (run_a / "OUTCAR").write_text(FIXTURE.read_text(encoding="utf-8"), encoding="utf-8")
+    (run_b / "OUTCAR").write_text(FIXTURE.read_text(encoding="utf-8"), encoding="utf-8")
+
+    use_case = DiscoverOutcarRunsUseCase()
+    non_recursive = DiscoverOutcarRunsRequestPayload(root_dir=str(tmp_path), recursive=False, max_runs=10)
+    limited = DiscoverOutcarRunsRequestPayload(root_dir=str(tmp_path), recursive=True, max_runs=1)
+
+    result_non_recursive = use_case.execute(non_recursive)
+    assert result_non_recursive.ok is True
+    assert result_non_recursive.value is not None
+    assert result_non_recursive.value.total_discovered == 1
+
+    result_limited = use_case.execute(limited)
+    assert result_limited.ok is True
+    assert result_limited.value is not None
+    assert result_limited.value.total_discovered == 2
+    assert result_limited.value.returned_count == 1
+    assert any("truncated" in warning for warning in result_limited.value.warnings)
 
 
 def test_batch_diagnostics_use_case_mixed_results() -> None:

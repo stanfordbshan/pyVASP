@@ -1,6 +1,6 @@
 # pyVASP Developer Manual
 
-## 1. File Tree (Phase 5 + DOS Profile Workflow)
+## 1. File Tree (Phase 6 + Batch Discovery Workflow)
 
 ```text
 pyVASP/
@@ -50,6 +50,9 @@ pyVASP/
         main.py
   tests/
     fixtures/
+      discovery_root/
+        run_a/OUTCAR
+        group/run_b/OUTCAR
       OUTCAR.sample
       OUTCAR.phase2.sample
       OUTCAR.real.mmm-group
@@ -95,6 +98,7 @@ pyVASP/
 - Transport-agnostic use-cases:
   - `SummarizeOutcarUseCase`
   - `BatchSummarizeOutcarUseCase`
+  - `DiscoverOutcarRunsUseCase`
   - `BatchDiagnoseOutcarUseCase`
   - `DiagnoseOutcarUseCase`
   - `BuildConvergenceProfileUseCase`
@@ -129,6 +133,7 @@ Mandatory direction:
 
 All adapter entry points call core validators first:
 - summary
+- outcar discovery
 - batch summary
 - batch diagnostics
 - diagnostics

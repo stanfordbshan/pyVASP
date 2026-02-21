@@ -13,6 +13,7 @@ FIXTURE_PHASE2 = Path(__file__).resolve().parents[2] / "fixtures" / "OUTCAR.phas
 STRUCTURE_FIXTURE = Path(__file__).resolve().parents[2] / "fixtures" / "structure.si2.json"
 EIGENVAL_FIXTURE = Path(__file__).resolve().parents[2] / "fixtures" / "EIGENVAL.sample"
 DOSCAR_FIXTURE = Path(__file__).resolve().parents[2] / "fixtures" / "DOSCAR.sample"
+DISCOVERY_ROOT_FIXTURE = Path(__file__).resolve().parents[2] / "fixtures" / "discovery_root"
 
 
 def test_api_summarize_outcar_success() -> None:
@@ -90,6 +91,34 @@ def test_api_batch_summary_bad_request() -> None:
     detail = response.json()["detail"]
     assert detail["code"] == "VALIDATION_ERROR"
     assert "outcar_paths" in detail["message"]
+
+
+def test_api_discover_outcar_runs_success() -> None:
+    client = TestClient(create_app())
+    response = client.post(
+        "/v1/outcar/discover",
+        json={"root_dir": str(DISCOVERY_ROOT_FIXTURE), "recursive": True, "max_runs": 10},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total_discovered"] == 2
+    assert body["returned_count"] == 2
+    assert len(body["outcar_paths"]) == 2
+    assert any(Path(run_dir).name == "run_a" for run_dir in body["run_dirs"])
+
+
+def test_api_discover_outcar_runs_non_recursive() -> None:
+    client = TestClient(create_app())
+    response = client.post(
+        "/v1/outcar/discover",
+        json={"root_dir": str(DISCOVERY_ROOT_FIXTURE), "recursive": False, "max_runs": 10},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total_discovered"] == 1
+    assert Path(body["run_dirs"][0]).name == "run_a"
 
 
 def test_api_batch_diagnostics_mixed_results() -> None:

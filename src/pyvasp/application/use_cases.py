@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from itertools import chain
+
 from pyvasp.application.ports import (
     DosProfileReader,
     ElectronicMetadataReader,
@@ -22,6 +24,8 @@ from pyvasp.core.payloads import (
     BatchSummaryRowPayload,
     ConvergenceProfileRequestPayload,
     ConvergenceProfileResponsePayload,
+    DiscoverOutcarRunsRequestPayload,
+    DiscoverOutcarRunsResponsePayload,
     DiagnosticsRequestPayload,
     DosProfileRequestPayload,
     DosProfileResponsePayload,
@@ -97,6 +101,49 @@ class BatchSummarizeOutcarUseCase:
                 rows=tuple(rows),
             )
         )
+
+
+class DiscoverOutcarRunsUseCase:
+    """Discover OUTCAR files below a root directory for batch workflows."""
+
+    def execute(self, request: DiscoverOutcarRunsRequestPayload) -> AppResult[DiscoverOutcarRunsResponsePayload]:
+        """Scan filesystem and return discovered OUTCAR paths and run directories."""
+
+        try:
+            root_dir = request.validated_root_dir()
+
+            if request.recursive:
+                candidates = root_dir.rglob("OUTCAR")
+            else:
+                direct_candidates = chain(
+                    [root_dir / "OUTCAR"],
+                    ((entry / "OUTCAR") for entry in root_dir.iterdir() if entry.is_dir()),
+                )
+                candidates = direct_candidates
+
+            discovered = sorted({str(path.resolve()) for path in candidates if path.is_file()})
+            selected = discovered[: request.max_runs]
+
+            warnings: list[str] = []
+            if len(discovered) > len(selected):
+                warnings.append(
+                    f"Discovery truncated: found {len(discovered)} OUTCAR files, returning first {len(selected)}"
+                )
+
+            run_dirs = tuple(str(validate_outcar_path(path).parent) for path in selected)
+            payload = DiscoverOutcarRunsResponsePayload(
+                root_dir=str(root_dir),
+                recursive=request.recursive,
+                max_runs=request.max_runs,
+                total_discovered=len(discovered),
+                returned_count=len(selected),
+                outcar_paths=tuple(selected),
+                run_dirs=run_dirs,
+                warnings=tuple(warnings),
+            )
+            return AppResult.success(payload)
+        except (ValidationError, OSError) as exc:
+            return AppResult.failure(exc)
 
 
 class BatchDiagnoseOutcarUseCase:

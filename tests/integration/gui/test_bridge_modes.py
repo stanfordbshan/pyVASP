@@ -14,6 +14,7 @@ FIXTURE_PHASE2 = Path(__file__).resolve().parents[2] / "fixtures" / "OUTCAR.phas
 STRUCTURE_FIXTURE = Path(__file__).resolve().parents[2] / "fixtures" / "structure.si2.json"
 EIGENVAL_FIXTURE = Path(__file__).resolve().parents[2] / "fixtures" / "EIGENVAL.sample"
 DOSCAR_FIXTURE = Path(__file__).resolve().parents[2] / "fixtures" / "DOSCAR.sample"
+DISCOVERY_ROOT_FIXTURE = Path(__file__).resolve().parents[2] / "fixtures" / "discovery_root"
 
 
 def test_bridge_direct_mode_uses_local_use_case() -> None:
@@ -74,6 +75,14 @@ def test_bridge_direct_mode_profile_electronic_and_input_generation() -> None:
     )
     assert electronic["band_gap"]["fundamental_gap_ev"] == 1.3
 
+    discovered = bridge.discover_outcar_runs(
+        root_dir=str(DISCOVERY_ROOT_FIXTURE),
+        recursive=True,
+        max_runs=10,
+    )
+    assert discovered["total_discovered"] == 2
+    assert discovered["returned_count"] == 2
+
     dos_profile = bridge.parse_dos_profile(
         doscar_path=str(DOSCAR_FIXTURE),
         energy_window_ev=2.0,
@@ -129,6 +138,8 @@ def test_gui_host_index_exposes_tabbed_workspace() -> None:
     assert "Batch Screening" in html
     assert "Electronic + Export" in html
     assert "Input Builder" in html
+    assert 'id="batch_root_dir"' in html
+    assert 'id="pick_batch_root_dir"' in html
     assert 'id="parse_eigenval"' in html
     assert 'id="parse_doscar"' in html
     assert 'id="dos_window_ev"' in html
@@ -214,6 +225,14 @@ def test_gui_host_ui_profile_electronic_and_input_endpoints() -> None:
     assert batch_diag.status_code == 200
     assert batch_diag.json()["total_count"] == 2
     assert batch_diag.json()["success_count"] == 1
+
+    discovered = client.post(
+        "/ui/discover-runs",
+        json={"root_dir": str(DISCOVERY_ROOT_FIXTURE), "recursive": True, "max_runs": 10},
+    )
+    assert discovered.status_code == 200
+    assert discovered.json()["total_discovered"] == 2
+    assert discovered.json()["returned_count"] == 2
 
     electronic = client.post(
         "/ui/electronic-metadata",

@@ -7,6 +7,9 @@ Current capabilities:
   - final energy (`TOTEN`), optional history, `E-fermi`, ionic/electronic iteration counts, final max force
 - OUTCAR batch summary:
   - summarize multiple OUTCAR paths in one request with per-row error reporting
+- OUTCAR run discovery:
+  - discover `OUTCAR` files from a root folder (recursive or non-recursive)
+  - use discovered run directories directly for batch workflows
 - OUTCAR batch diagnostics:
   - run convergence diagnostics over multiple OUTCAR paths in one request
 - OUTCAR diagnostics:
@@ -46,6 +49,7 @@ python -m pip install -e .[dev]
 
 ```bash
 pyvasp-cli summary /absolute/path/to/OUTCAR --mode direct --include-history
+pyvasp-cli discover-runs /absolute/path/to/run_root --mode direct --max-runs 400
 pyvasp-cli batch-summary /path/A/OUTCAR /path/B/OUTCAR --mode direct
 pyvasp-cli batch-diagnostics /path/A/OUTCAR /path/B/OUTCAR --mode direct --energy-tol 1e-4 --force-tol 0.02
 pyvasp-cli diagnostics /absolute/path/to/OUTCAR --mode direct --energy-tol 1e-4 --force-tol 0.02
@@ -71,6 +75,7 @@ pyvasp-api
 
 Endpoints:
 - `POST /v1/outcar/summary`
+- `POST /v1/outcar/discover`
 - `POST /v1/outcar/batch-summary`
 - `POST /v1/outcar/batch-diagnostics`
 - `POST /v1/outcar/diagnostics`
@@ -120,6 +125,9 @@ GUI primary UX:
 - The GUI auto-resolves standard files from that folder:
   - `OUTCAR` for summary/diagnostics/profile/series/export
   - `EIGENVAL` and `DOSCAR` for electronic metadata and DOS profile
+- For batch workflows, you can:
+  - set `Batch Root Folder`
+  - click `Discover Runs From Root` to auto-fill discovered run directories
 - Navigate by task tabs:
   - `Post-processing`
   - `Batch Screening`

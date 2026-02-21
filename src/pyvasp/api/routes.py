@@ -13,6 +13,8 @@ from pyvasp.api.schemas import (
     BatchSummaryResponseSchema,
     ConvergenceProfileRequestSchema,
     ConvergenceProfileResponseSchema,
+    DiscoverOutcarRunsRequestSchema,
+    DiscoverOutcarRunsResponseSchema,
     DiagnosticsRequestSchema,
     DiagnosticsResponseSchema,
     DosProfileRequestSchema,
@@ -35,6 +37,7 @@ from pyvasp.application.use_cases import (
     BuildConvergenceProfileUseCase,
     BuildDosProfileUseCase,
     BuildIonicSeriesUseCase,
+    DiscoverOutcarRunsUseCase,
     DiagnoseOutcarUseCase,
     ExportOutcarTabularUseCase,
     GenerateRelaxInputUseCase,
@@ -46,6 +49,7 @@ from pyvasp.core.payloads import (
     validate_batch_diagnostics_request,
     validate_batch_summary_request,
     validate_convergence_profile_request,
+    validate_discover_outcar_runs_request,
     validate_diagnostics_request,
     validate_dos_profile_request,
     validate_electronic_metadata_request,
@@ -58,6 +62,7 @@ from pyvasp.core.payloads import (
 
 def create_router(
     summary_use_case: SummarizeOutcarUseCase,
+    discover_outcar_runs_use_case: DiscoverOutcarRunsUseCase,
     batch_summary_use_case: BatchSummarizeOutcarUseCase,
     batch_diagnostics_use_case: BatchDiagnoseOutcarUseCase,
     diagnostics_use_case: DiagnoseOutcarUseCase,
@@ -89,6 +94,18 @@ def create_router(
         if not result.ok or result.value is None:
             _raise_http_from_error(result.error or AppError(ErrorCode.INTERNAL_ERROR, "Unknown application error"))
         return SummaryResponseSchema(**result.value.to_mapping())
+
+    @router.post("/v1/outcar/discover", response_model=DiscoverOutcarRunsResponseSchema, responses=error_responses)
+    def discover_outcar_runs(request: DiscoverOutcarRunsRequestSchema) -> DiscoverOutcarRunsResponseSchema:
+        try:
+            payload = validate_discover_outcar_runs_request(request.model_dump())
+        except Exception as exc:
+            _raise_http_from_error(normalize_error(exc))
+
+        result = discover_outcar_runs_use_case.execute(payload)
+        if not result.ok or result.value is None:
+            _raise_http_from_error(result.error or AppError(ErrorCode.INTERNAL_ERROR, "Unknown application error"))
+        return DiscoverOutcarRunsResponseSchema(**result.value.to_mapping())
 
     @router.post("/v1/outcar/batch-summary", response_model=BatchSummaryResponseSchema, responses=error_responses)
     def batch_summary(request: BatchSummaryRequestSchema) -> BatchSummaryResponseSchema:

@@ -32,6 +32,14 @@ class UiBatchSummaryRequest(BaseModel):
     fail_fast: bool = Field(default=False)
 
 
+class UiDiscoverRunsRequest(BaseModel):
+    """GUI run-discovery request schema."""
+
+    root_dir: str = Field(..., description="Root directory for OUTCAR discovery")
+    recursive: bool = Field(default=True)
+    max_runs: int = Field(default=200)
+
+
 class UiBatchDiagnosticsRequest(BaseModel):
     """GUI batch diagnostics request schema."""
 
@@ -174,6 +182,17 @@ def create_gui_app(
             return app.state.bridge.batch_summarize_outcars(
                 outcar_paths=request.outcar_paths,
                 fail_fast=request.fail_fast,
+            )
+        except Exception as exc:
+            _raise_ui_http_error(exc)
+
+    @app.post("/ui/discover-runs")
+    def ui_discover_runs(request: UiDiscoverRunsRequest) -> dict:
+        try:
+            return app.state.bridge.discover_outcar_runs(
+                root_dir=request.root_dir,
+                recursive=request.recursive,
+                max_runs=request.max_runs,
             )
         except Exception as exc:
             _raise_ui_http_error(exc)

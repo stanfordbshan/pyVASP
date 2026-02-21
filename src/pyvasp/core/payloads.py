@@ -24,7 +24,7 @@ from pyvasp.core.models import (
     StressTensor,
     StructureAtom,
 )
-from pyvasp.core.validators import validate_file_path, validate_outcar_path
+from pyvasp.core.validators import validate_directory_path, validate_file_path, validate_outcar_path
 
 try:  # pragma: no cover - import guarded for portability
     from ase.data import atomic_numbers as ASE_ATOMIC_NUMBERS
@@ -110,6 +110,41 @@ class BatchDiagnosticsRequestPayload:
                 "force_tolerance_ev_per_a",
             ),
             fail_fast=bool(raw.get("fail_fast", False)),
+        )
+
+
+@dataclass(frozen=True)
+class DiscoverOutcarRunsRequestPayload:
+    """Canonical request payload for discovering OUTCAR files from a root directory."""
+
+    root_dir: str
+    recursive: bool = True
+    max_runs: int = 200
+
+    @classmethod
+    def from_mapping(cls, raw: dict[str, Any]) -> "DiscoverOutcarRunsRequestPayload":
+        root_value = raw.get("root_dir")
+        resolved_root = validate_directory_path(
+            str(root_value) if root_value is not None else "",
+            field_name="root_dir",
+            label="Root directory",
+        )
+
+        max_runs = _coerce_positive_int(raw.get("max_runs", 200), "max_runs")
+        if max_runs > 10000:
+            raise ValidationError("max_runs must be <= 10000")
+
+        return cls(
+            root_dir=str(resolved_root),
+            recursive=bool(raw.get("recursive", True)),
+            max_runs=max_runs,
+        )
+
+    def validated_root_dir(self) -> Path:
+        return validate_directory_path(
+            self.root_dir,
+            field_name="root_dir",
+            label="Root directory",
         )
 
 
@@ -515,6 +550,27 @@ class BatchSummaryResponsePayload:
 
 
 @dataclass(frozen=True)
+class DiscoverOutcarRunsResponsePayload:
+    """Canonical discovered-runs response consumed by adapters."""
+
+    root_dir: str
+    recursive: bool
+    max_runs: int
+    total_discovered: int
+    returned_count: int
+    outcar_paths: tuple[str, ...]
+    run_dirs: tuple[str, ...]
+    warnings: tuple[str, ...]
+
+    def to_mapping(self) -> dict[str, Any]:
+        mapped = asdict(self)
+        mapped["outcar_paths"] = list(self.outcar_paths)
+        mapped["run_dirs"] = list(self.run_dirs)
+        mapped["warnings"] = list(self.warnings)
+        return mapped
+
+
+@dataclass(frozen=True)
 class BatchDiagnosticsRowPayload:
     """Per-OUTCAR batch diagnostics row for adapters."""
 
@@ -821,6 +877,17 @@ def validate_batch_diagnostics_request(raw: dict[str, Any]) -> BatchDiagnosticsR
 
     try:
         return BatchDiagnosticsRequestPayload.from_mapping(raw)
+    except ValidationError:
+        raise
+    except Exception as exc:  # pragma: no cover - defensive normalization
+        raise ValidationError(str(exc)) from exc
+
+
+def validate_discover_outcar_runs_request(raw: dict[str, Any]) -> DiscoverOutcarRunsRequestPayload:
+    """Map arbitrary adapter payload into canonical OUTCAR-discovery request object."""
+
+    try:
+        return DiscoverOutcarRunsRequestPayload.from_mapping(raw)
     except ValidationError:
         raise
     except Exception as exc:  # pragma: no cover - defensive normalization

@@ -27,6 +27,7 @@ from pyvasp.core.payloads import (
     BatchDiagnosticsRequestPayload,
     BatchDiagnosticsResponsePayload,
     BatchDiagnosticsRowPayload,
+    DiscoverOutcarRunsResponsePayload,
     BatchSummaryResponsePayload,
     BatchSummaryRowPayload,
     DiagnosticsResponsePayload,
@@ -38,6 +39,7 @@ from pyvasp.core.payloads import (
     SummaryResponsePayload,
     validate_batch_diagnostics_request,
     validate_batch_summary_request,
+    validate_discover_outcar_runs_request,
     validate_diagnostics_request,
     validate_dos_profile_request,
     validate_electronic_metadata_request,
@@ -52,6 +54,7 @@ FIXTURE = Path(__file__).resolve().parents[2] / "fixtures" / "OUTCAR.sample"
 STRUCTURE_FIXTURE = Path(__file__).resolve().parents[2] / "fixtures" / "structure.si2.json"
 EIGENVAL_FIXTURE = Path(__file__).resolve().parents[2] / "fixtures" / "EIGENVAL.sample"
 DOSCAR_FIXTURE = Path(__file__).resolve().parents[2] / "fixtures" / "DOSCAR.sample"
+DISCOVERY_ROOT_FIXTURE = Path(__file__).resolve().parents[2] / "fixtures" / "discovery_root"
 
 
 def test_validate_summary_request_success() -> None:
@@ -98,6 +101,29 @@ def test_validate_batch_diagnostics_request_success() -> None:
 def test_validate_batch_diagnostics_request_requires_nonempty_list() -> None:
     with pytest.raises(ValidationError):
         validate_batch_diagnostics_request({"outcar_paths": []})
+
+
+def test_validate_discover_outcar_runs_request_success() -> None:
+    payload = validate_discover_outcar_runs_request(
+        {
+            "root_dir": str(DISCOVERY_ROOT_FIXTURE),
+            "recursive": True,
+            "max_runs": 10,
+        }
+    )
+    assert payload.root_dir == str(DISCOVERY_ROOT_FIXTURE.resolve())
+    assert payload.recursive is True
+    assert payload.max_runs == 10
+
+
+def test_validate_discover_outcar_runs_request_bad_max_runs() -> None:
+    with pytest.raises(ValidationError):
+        validate_discover_outcar_runs_request(
+            {
+                "root_dir": str(DISCOVERY_ROOT_FIXTURE),
+                "max_runs": 0,
+            }
+        )
 
 
 def test_validate_diagnostics_request_rejects_non_positive_tolerances() -> None:
@@ -433,6 +459,31 @@ def test_batch_summary_response_payload_mapping() -> None:
     assert mapped["error_count"] == 1
     assert mapped["rows"][0]["warnings"] == ["ok"]
     assert mapped["rows"][1]["error"]["code"] == "FILE_NOT_FOUND"
+
+
+def test_discover_outcar_runs_response_payload_mapping() -> None:
+    payload = DiscoverOutcarRunsResponsePayload(
+        root_dir=str(DISCOVERY_ROOT_FIXTURE),
+        recursive=True,
+        max_runs=10,
+        total_discovered=2,
+        returned_count=2,
+        outcar_paths=(
+            str(DISCOVERY_ROOT_FIXTURE / "run_a" / "OUTCAR"),
+            str(DISCOVERY_ROOT_FIXTURE / "group" / "run_b" / "OUTCAR"),
+        ),
+        run_dirs=(
+            str(DISCOVERY_ROOT_FIXTURE / "run_a"),
+            str(DISCOVERY_ROOT_FIXTURE / "group" / "run_b"),
+        ),
+        warnings=("truncated",),
+    )
+
+    mapped = payload.to_mapping()
+    assert mapped["total_discovered"] == 2
+    assert mapped["returned_count"] == 2
+    assert mapped["run_dirs"][0].endswith("run_a")
+    assert mapped["warnings"] == ["truncated"]
 
 
 def test_batch_diagnostics_response_payload_mapping() -> None:

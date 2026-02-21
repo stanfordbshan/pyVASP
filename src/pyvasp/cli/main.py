@@ -40,6 +40,24 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_shared_backend_args(batch_summary)
 
+    discover_runs = subparsers.add_parser(
+        "discover-runs",
+        help="Discover OUTCAR files from a root directory for batch workflows",
+    )
+    discover_runs.add_argument("root_dir", help="Root directory to scan")
+    discover_runs.add_argument(
+        "--non-recursive",
+        action="store_true",
+        help="Disable recursive scan (only root and immediate child directories)",
+    )
+    discover_runs.add_argument(
+        "--max-runs",
+        type=int,
+        default=200,
+        help="Maximum number of discovered runs returned",
+    )
+    _add_shared_backend_args(discover_runs)
+
     batch_diagnostics = subparsers.add_parser("batch-diagnostics", help="Diagnose multiple OUTCAR files")
     batch_diagnostics.add_argument("outcar_paths", nargs="+", help="One or more OUTCAR file paths")
     batch_diagnostics.add_argument(
@@ -175,6 +193,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "batch-summary":
         return _run_batch_summary(bridge, args)
 
+    if args.command == "discover-runs":
+        return _run_discover_runs(bridge, args)
+
     if args.command == "batch-diagnostics":
         return _run_batch_diagnostics(bridge, args)
 
@@ -222,6 +243,21 @@ def _run_batch_summary(bridge: GuiBackendBridge, args: argparse.Namespace) -> in
         data = bridge.batch_summarize_outcars(
             outcar_paths=args.outcar_paths,
             fail_fast=args.fail_fast,
+        )
+    except Exception as exc:
+        print(json.dumps({"error": str(exc)}), file=sys.stderr)
+        return 1
+
+    print(json.dumps(data, indent=2))
+    return 0
+
+
+def _run_discover_runs(bridge: GuiBackendBridge, args: argparse.Namespace) -> int:
+    try:
+        data = bridge.discover_outcar_runs(
+            root_dir=args.root_dir,
+            recursive=not args.non_recursive,
+            max_runs=args.max_runs,
         )
     except Exception as exc:
         print(json.dumps({"error": str(exc)}), file=sys.stderr)

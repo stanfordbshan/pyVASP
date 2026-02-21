@@ -14,6 +14,7 @@ from pyvasp.application.use_cases import (
     BuildDosProfileUseCase,
     BuildIonicSeriesUseCase,
     DiagnoseOutcarUseCase,
+    DiscoverOutcarRunsUseCase,
     ExportOutcarTabularUseCase,
     GenerateRelaxInputUseCase,
     ParseElectronicMetadataUseCase,
@@ -23,6 +24,7 @@ from pyvasp.core.payloads import (
     validate_batch_diagnostics_request,
     validate_batch_summary_request,
     validate_convergence_profile_request,
+    validate_discover_outcar_runs_request,
     validate_diagnostics_request,
     validate_dos_profile_request,
     validate_electronic_metadata_request,
@@ -54,6 +56,7 @@ class GuiBackendBridge:
         mode: str = "auto",
         api_base_url: str = "http://127.0.0.1:8000",
         summary_use_case: SummarizeOutcarUseCase | None = None,
+        discover_outcar_runs_use_case: DiscoverOutcarRunsUseCase | None = None,
         batch_summary_use_case: BatchSummarizeOutcarUseCase | None = None,
         batch_diagnostics_use_case: BatchDiagnoseOutcarUseCase | None = None,
         diagnostics_use_case: DiagnoseOutcarUseCase | None = None,
@@ -70,6 +73,7 @@ class GuiBackendBridge:
         outcar_parser = OutcarParser()
         electronic_parser = ElectronicParser()
         self._summary_use_case = summary_use_case or SummarizeOutcarUseCase(reader=outcar_parser)
+        self._discover_outcar_runs_use_case = discover_outcar_runs_use_case or DiscoverOutcarRunsUseCase()
         self._batch_summary_use_case = batch_summary_use_case or BatchSummarizeOutcarUseCase(reader=outcar_parser)
         self._batch_diagnostics_use_case = (
             batch_diagnostics_use_case or BatchDiagnoseOutcarUseCase(reader=outcar_parser)
@@ -116,6 +120,27 @@ class GuiBackendBridge:
             api_path="/v1/outcar/batch-summary",
             direct_call=self._call_direct_batch_summary,
             operation_label="batch summary",
+        )
+
+    def discover_outcar_runs(
+        self,
+        *,
+        root_dir: str,
+        recursive: bool = True,
+        max_runs: int = 200,
+    ) -> dict:
+        """Discover OUTCAR run paths from a root directory."""
+
+        payload = {
+            "root_dir": root_dir,
+            "recursive": recursive,
+            "max_runs": max_runs,
+        }
+        return self._execute(
+            payload=payload,
+            api_path="/v1/outcar/discover",
+            direct_call=self._call_direct_discover_outcar_runs,
+            operation_label="OUTCAR discovery",
         )
 
     def diagnose_outcar(
@@ -344,6 +369,16 @@ class GuiBackendBridge:
         result = self._batch_summary_use_case.execute(canonical)
         if not result.ok or result.value is None:
             raise RuntimeError(_format_app_error(result.error, "Unknown direct batch summary error"))
+        return result.value.to_mapping()
+
+    def _call_direct_discover_outcar_runs(self, payload: dict) -> dict:
+        try:
+            canonical = validate_discover_outcar_runs_request(payload)
+        except Exception as exc:
+            raise RuntimeError(_format_app_error(normalize_error(exc), "Invalid OUTCAR discovery request")) from exc
+        result = self._discover_outcar_runs_use_case.execute(canonical)
+        if not result.ok or result.value is None:
+            raise RuntimeError(_format_app_error(result.error, "Unknown direct OUTCAR discovery error"))
         return result.value.to_mapping()
 
     def _call_direct_batch_diagnostics(self, payload: dict) -> dict:
