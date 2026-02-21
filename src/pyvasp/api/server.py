@@ -9,6 +9,7 @@ from pyvasp.application.use_cases import (
     BatchDiagnoseOutcarUseCase,
     BatchSummarizeOutcarUseCase,
     BuildConvergenceProfileUseCase,
+    BuildDosProfileUseCase,
     BuildIonicSeriesUseCase,
     DiagnoseOutcarUseCase,
     ExportOutcarTabularUseCase,
@@ -25,6 +26,7 @@ def create_app() -> FastAPI:
     """Create configured FastAPI application instance."""
 
     outcar_parser = OutcarParser()
+    electronic_parser = ElectronicParser()
     summary_use_case = SummarizeOutcarUseCase(reader=outcar_parser)
     batch_summary_use_case = BatchSummarizeOutcarUseCase(reader=outcar_parser)
     batch_diagnostics_use_case = BatchDiagnoseOutcarUseCase(reader=outcar_parser)
@@ -35,7 +37,8 @@ def create_app() -> FastAPI:
         summary_reader=outcar_parser,
         ionic_series_reader=outcar_parser,
     )
-    electronic_use_case = ParseElectronicMetadataUseCase(reader=ElectronicParser())
+    electronic_use_case = ParseElectronicMetadataUseCase(reader=electronic_parser)
+    dos_profile_use_case = BuildDosProfileUseCase(reader=electronic_parser)
     relax_input_use_case = GenerateRelaxInputUseCase(builder=RelaxInputGenerator())
 
     app = FastAPI(
@@ -53,6 +56,7 @@ def create_app() -> FastAPI:
             ionic_series_use_case,
             export_tabular_use_case,
             electronic_use_case,
+            dos_profile_use_case,
             relax_input_use_case,
         )
     )

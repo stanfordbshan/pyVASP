@@ -1,6 +1,6 @@
 # pyVASP Developer Manual
 
-## 1. File Tree (Phase 4.5 + Batch Diagnostics)
+## 1. File Tree (Phase 5 + DOS Profile Workflow)
 
 ```text
 pyVASP/
@@ -101,12 +101,13 @@ pyVASP/
   - `BuildIonicSeriesUseCase`
   - `ExportOutcarTabularUseCase`
   - `ParseElectronicMetadataUseCase`
+  - `BuildDosProfileUseCase`
   - `GenerateRelaxInputUseCase`
 - Use-cases return `AppResult` with structured `AppError` failures; no adapter-specific error format.
 
 ### method modules
 - `outcar`: OUTCAR parsing.
-- `electronic`: `EIGENVAL`/`DOSCAR` parsing for band-gap and DOS metadata.
+- `electronic`: `EIGENVAL`/`DOSCAR` parsing for band-gap metadata, DOS metadata, and DOS profile points.
 - `inputgen`: INCAR/KPOINTS/POSCAR generation.
 
 ### adapters
@@ -135,6 +136,7 @@ All adapter entry points call core validators first:
 - ionic series
 - outcar tabular export
 - electronic metadata
+- DOS profile
 - relaxation input generation
 
 Validation hardening examples:

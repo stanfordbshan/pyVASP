@@ -11,6 +11,7 @@ from pyvasp.application.use_cases import (
     BatchDiagnoseOutcarUseCase,
     BatchSummarizeOutcarUseCase,
     BuildConvergenceProfileUseCase,
+    BuildDosProfileUseCase,
     BuildIonicSeriesUseCase,
     DiagnoseOutcarUseCase,
     ExportOutcarTabularUseCase,
@@ -23,6 +24,7 @@ from pyvasp.core.payloads import (
     validate_batch_summary_request,
     validate_convergence_profile_request,
     validate_diagnostics_request,
+    validate_dos_profile_request,
     validate_electronic_metadata_request,
     validate_export_tabular_request,
     validate_generate_relax_input_request,
@@ -59,12 +61,14 @@ class GuiBackendBridge:
         ionic_series_use_case: BuildIonicSeriesUseCase | None = None,
         export_tabular_use_case: ExportOutcarTabularUseCase | None = None,
         electronic_use_case: ParseElectronicMetadataUseCase | None = None,
+        dos_profile_use_case: BuildDosProfileUseCase | None = None,
         relax_input_use_case: GenerateRelaxInputUseCase | None = None,
     ) -> None:
         self.mode = ExecutionMode(mode)
         self.api_base_url = api_base_url.rstrip("/")
 
         outcar_parser = OutcarParser()
+        electronic_parser = ElectronicParser()
         self._summary_use_case = summary_use_case or SummarizeOutcarUseCase(reader=outcar_parser)
         self._batch_summary_use_case = batch_summary_use_case or BatchSummarizeOutcarUseCase(reader=outcar_parser)
         self._batch_diagnostics_use_case = (
@@ -77,7 +81,8 @@ class GuiBackendBridge:
             summary_reader=outcar_parser,
             ionic_series_reader=outcar_parser,
         )
-        self._electronic_use_case = electronic_use_case or ParseElectronicMetadataUseCase(reader=ElectronicParser())
+        self._electronic_use_case = electronic_use_case or ParseElectronicMetadataUseCase(reader=electronic_parser)
+        self._dos_profile_use_case = dos_profile_use_case or BuildDosProfileUseCase(reader=electronic_parser)
         self._relax_input_use_case = relax_input_use_case or GenerateRelaxInputUseCase(builder=RelaxInputGenerator())
 
     def summarize_outcar(self, *, outcar_path: str, include_history: bool = False) -> dict:
@@ -196,6 +201,27 @@ class GuiBackendBridge:
             api_path="/v1/electronic/metadata",
             direct_call=self._call_direct_electronic_metadata,
             operation_label="electronic metadata",
+        )
+
+    def parse_dos_profile(
+        self,
+        *,
+        doscar_path: str,
+        energy_window_ev: float = 5.0,
+        max_points: int = 400,
+    ) -> dict:
+        """Parse chart-ready total DOS profile from DOSCAR."""
+
+        payload = {
+            "doscar_path": doscar_path,
+            "energy_window_ev": energy_window_ev,
+            "max_points": max_points,
+        }
+        return self._execute(
+            payload=payload,
+            api_path="/v1/electronic/dos-profile",
+            direct_call=self._call_direct_dos_profile,
+            operation_label="DOS profile",
         )
 
     def export_outcar_tabular(
@@ -348,6 +374,16 @@ class GuiBackendBridge:
         result = self._electronic_use_case.execute(canonical)
         if not result.ok or result.value is None:
             raise RuntimeError(_format_app_error(result.error, "Unknown direct electronic metadata error"))
+        return result.value.to_mapping()
+
+    def _call_direct_dos_profile(self, payload: dict) -> dict:
+        try:
+            canonical = validate_dos_profile_request(payload)
+        except Exception as exc:
+            raise RuntimeError(_format_app_error(normalize_error(exc), "Invalid DOS profile request")) from exc
+        result = self._dos_profile_use_case.execute(canonical)
+        if not result.ok or result.value is None:
+            raise RuntimeError(_format_app_error(result.error, "Unknown direct DOS profile error"))
         return result.value.to_mapping()
 
     def _call_direct_ionic_series(self, payload: dict) -> dict:

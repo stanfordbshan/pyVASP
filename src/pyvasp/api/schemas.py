@@ -65,6 +65,14 @@ class ElectronicMetadataRequestSchema(BaseModel):
     doscar_path: str | None = Field(default=None, description="Path to DOSCAR")
 
 
+class DosProfileRequestSchema(BaseModel):
+    """Request payload for DOSCAR total-DOS profile endpoint."""
+
+    doscar_path: str = Field(..., description="Path to DOSCAR")
+    energy_window_ev: float = Field(default=5.0, description="Energy window around E-fermi in eV")
+    max_points: int = Field(default=400, description="Maximum number of sampled DOS points")
+
+
 class StructureAtomSchema(BaseModel):
     """Atomic site for relaxation input generation."""
 
@@ -196,6 +204,15 @@ class DosMetadataSchema(BaseModel):
     total_dos_at_fermi: float | None
 
 
+class DosProfilePointSchema(BaseModel):
+    """Total-DOS point used for plotting."""
+
+    index: int
+    energy_ev: float
+    energy_relative_ev: float
+    dos_total: float
+
+
 class SummaryResponseSchema(BaseModel):
     """Response schema for OUTCAR summary endpoint."""
 
@@ -317,6 +334,17 @@ class ElectronicMetadataResponseSchema(BaseModel):
     doscar_path: str | None
     band_gap: BandGapSchema | None
     dos_metadata: DosMetadataSchema | None
+    warnings: list[str]
+
+
+class DosProfileResponseSchema(BaseModel):
+    """Response schema for DOSCAR profile endpoint."""
+
+    source_path: str
+    efermi_ev: float
+    energy_window_ev: float
+    points: list[DosProfilePointSchema]
+    n_points: int
     warnings: list[str]
 
 

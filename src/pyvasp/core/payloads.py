@@ -12,6 +12,7 @@ from pyvasp.core.errors import AppError, ValidationError
 from pyvasp.core.models import (
     BandGapSummary,
     ConvergenceProfile,
+    DosProfile,
     DosMetadata,
     ElectronicStructureMetadata,
     GeneratedInputBundle,
@@ -239,6 +240,47 @@ class ElectronicMetadataRequestPayload:
             label="DOSCAR",
         )
         return (eigenval, doscar)
+
+
+@dataclass(frozen=True)
+class DosProfileRequestPayload:
+    """Canonical request payload for DOSCAR total-DOS profile parsing."""
+
+    doscar_path: str
+    energy_window_ev: float = 5.0
+    max_points: int = 400
+
+    @classmethod
+    def from_mapping(cls, raw: dict[str, Any]) -> "DosProfileRequestPayload":
+        path_value = raw.get("doscar_path")
+        resolved = validate_file_path(
+            str(path_value) if path_value is not None else "",
+            field_name="doscar_path",
+            label="DOSCAR",
+        )
+
+        energy_window_ev = _coerce_positive_float(raw.get("energy_window_ev", 5.0), "energy_window_ev")
+        if energy_window_ev > 50.0:
+            raise ValidationError("energy_window_ev must be <= 50")
+
+        max_points = _coerce_positive_int(raw.get("max_points", 400), "max_points")
+        if max_points < 20:
+            raise ValidationError("max_points must be >= 20")
+        if max_points > 5000:
+            raise ValidationError("max_points must be <= 5000")
+
+        return cls(
+            doscar_path=str(resolved),
+            energy_window_ev=energy_window_ev,
+            max_points=max_points,
+        )
+
+    def validated_path(self) -> Path:
+        return validate_file_path(
+            self.doscar_path,
+            field_name="doscar_path",
+            label="DOSCAR",
+        )
 
 
 @dataclass(frozen=True)
@@ -687,6 +729,44 @@ class ElectronicMetadataResponsePayload:
 
 
 @dataclass(frozen=True)
+class DosProfileResponsePayload:
+    """Canonical DOS-profile response payload consumed by adapters."""
+
+    source_path: str
+    efermi_ev: float
+    energy_window_ev: float
+    points: tuple[dict[str, Any], ...]
+    n_points: int
+    warnings: tuple[str, ...]
+
+    @classmethod
+    def from_profile(cls, profile: DosProfile) -> "DosProfileResponsePayload":
+        points = tuple(
+            {
+                "index": point.index,
+                "energy_ev": point.energy_ev,
+                "energy_relative_ev": point.energy_relative_ev,
+                "dos_total": point.dos_total,
+            }
+            for point in profile.points
+        )
+        return cls(
+            source_path=profile.source_path,
+            efermi_ev=profile.efermi_ev,
+            energy_window_ev=profile.energy_window_ev,
+            points=points,
+            n_points=len(points),
+            warnings=profile.warnings,
+        )
+
+    def to_mapping(self) -> dict[str, Any]:
+        mapped = asdict(self)
+        mapped["warnings"] = list(self.warnings)
+        mapped["points"] = list(self.points)
+        return mapped
+
+
+@dataclass(frozen=True)
 class GenerateRelaxInputResponsePayload:
     """Canonical generated-input response consumed by adapters."""
 
@@ -796,6 +876,17 @@ def validate_electronic_metadata_request(raw: dict[str, Any]) -> ElectronicMetad
 
     try:
         return ElectronicMetadataRequestPayload.from_mapping(raw)
+    except ValidationError:
+        raise
+    except Exception as exc:  # pragma: no cover - defensive normalization
+        raise ValidationError(str(exc)) from exc
+
+
+def validate_dos_profile_request(raw: dict[str, Any]) -> DosProfileRequestPayload:
+    """Map arbitrary adapter payload into canonical DOS-profile request."""
+
+    try:
+        return DosProfileRequestPayload.from_mapping(raw)
     except ValidationError:
         raise
     except Exception as exc:  # pragma: no cover - defensive normalization

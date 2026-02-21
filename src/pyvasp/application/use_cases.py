@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pyvasp.application.ports import (
+    DosProfileReader,
     ElectronicMetadataReader,
     OutcarIonicSeriesReader,
     OutcarObservablesReader,
@@ -22,6 +23,8 @@ from pyvasp.core.payloads import (
     ConvergenceProfileRequestPayload,
     ConvergenceProfileResponsePayload,
     DiagnosticsRequestPayload,
+    DosProfileRequestPayload,
+    DosProfileResponsePayload,
     DiagnosticsResponsePayload,
     ElectronicMetadataRequestPayload,
     ElectronicMetadataResponsePayload,
@@ -352,6 +355,26 @@ class ParseElectronicMetadataUseCase:
                 doscar_path=doscar_path,
             )
             return AppResult.success(ElectronicMetadataResponsePayload.from_metadata(metadata))
+        except (ValidationError, ParseError, OSError, ValueError) as exc:
+            return AppResult.failure(exc)
+
+
+class BuildDosProfileUseCase:
+    """Extract chart-ready DOS profile points from DOSCAR."""
+
+    def __init__(self, reader: DosProfileReader) -> None:
+        self._reader = reader
+
+    def execute(self, request: DosProfileRequestPayload) -> AppResult[DosProfileResponsePayload]:
+        """Run DOSCAR parsing and return typed DOS-profile payload."""
+
+        try:
+            profile = self._reader.parse_dos_profile(
+                doscar_path=request.validated_path(),
+                energy_window_ev=request.energy_window_ev,
+                max_points=request.max_points,
+            )
+            return AppResult.success(DosProfileResponsePayload.from_profile(profile))
         except (ValidationError, ParseError, OSError, ValueError) as exc:
             return AppResult.failure(exc)
 

@@ -6,6 +6,7 @@ from pyvasp.application.use_cases import (
     BatchDiagnoseOutcarUseCase,
     BatchSummarizeOutcarUseCase,
     BuildConvergenceProfileUseCase,
+    BuildDosProfileUseCase,
     BuildIonicSeriesUseCase,
     DiagnoseOutcarUseCase,
     ExportOutcarTabularUseCase,
@@ -17,6 +18,8 @@ from pyvasp.core.errors import ErrorCode, ParseError
 from pyvasp.core.models import (
     BandGapChannel,
     BandGapSummary,
+    DosProfile,
+    DosProfilePoint,
     DosMetadata,
     ElectronicStructureMetadata,
     EnergyPoint,
@@ -34,6 +37,7 @@ from pyvasp.core.payloads import (
     BatchSummaryRequestPayload,
     ConvergenceProfileRequestPayload,
     DiagnosticsRequestPayload,
+    DosProfileRequestPayload,
     ElectronicMetadataRequestPayload,
     ExportTabularRequestPayload,
     GenerateRelaxInputRequestPayload,
@@ -177,6 +181,26 @@ class WorkingElectronicReader:
 class BrokenElectronicReader:
     def parse_metadata(self, *, eigenval_path: Path | None, doscar_path: Path | None) -> ElectronicStructureMetadata:
         raise ParseError("electronic parse failed")
+
+
+class WorkingDosProfileReader:
+    def parse_dos_profile(self, *, doscar_path: Path, energy_window_ev: float, max_points: int) -> DosProfile:
+        return DosProfile(
+            source_path=str(doscar_path),
+            efermi_ev=0.5,
+            energy_window_ev=energy_window_ev,
+            points=(
+                DosProfilePoint(index=1, energy_ev=-0.5, energy_relative_ev=-1.0, dos_total=0.2),
+                DosProfilePoint(index=2, energy_ev=0.5, energy_relative_ev=0.0, dos_total=0.4),
+                DosProfilePoint(index=3, energy_ev=1.5, energy_relative_ev=1.0, dos_total=0.8),
+            ),
+            warnings=(),
+        )
+
+
+class BrokenDosProfileReader:
+    def parse_dos_profile(self, *, doscar_path: Path, energy_window_ev: float, max_points: int) -> DosProfile:
+        raise ParseError("dos profile failed")
 
 
 class WorkingInputBuilder:
@@ -418,6 +442,36 @@ def test_electronic_use_case_failure() -> None:
     assert result.error is not None
     assert result.error.code == ErrorCode.PARSE_ERROR
     assert result.error.message == "electronic parse failed"
+
+
+def test_dos_profile_use_case_success() -> None:
+    use_case = BuildDosProfileUseCase(reader=WorkingDosProfileReader())
+    request = DosProfileRequestPayload(
+        doscar_path=str(FIXTURE),
+        energy_window_ev=3.0,
+        max_points=200,
+    )
+
+    result = use_case.execute(request)
+    assert result.ok is True
+    assert result.value is not None
+    assert result.value.n_points == 3
+    assert result.value.points[1]["energy_relative_ev"] == 0.0
+
+
+def test_dos_profile_use_case_failure() -> None:
+    use_case = BuildDosProfileUseCase(reader=BrokenDosProfileReader())
+    request = DosProfileRequestPayload(
+        doscar_path=str(FIXTURE),
+        energy_window_ev=3.0,
+        max_points=200,
+    )
+
+    result = use_case.execute(request)
+    assert result.ok is False
+    assert result.error is not None
+    assert result.error.code == ErrorCode.PARSE_ERROR
+    assert result.error.message == "dos profile failed"
 
 
 def test_generate_relax_input_use_case_success() -> None:

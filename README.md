@@ -2,7 +2,7 @@
 
 pyVASP is a layered Python toolkit for VASP input generation, post-processing, and visualization workflows.
 
-Phase 1-4.5 capabilities now include:
+Phase 1-5 capabilities now include:
 - OUTCAR summary and diagnostics (energy/force/pressure/stress/magnetization/convergence)
 - batch OUTCAR summary for high-throughput screening:
   - mixed success/error rows with per-item structured error payloads
@@ -17,6 +17,7 @@ Phase 1-4.5 capabilities now include:
 - VASPKIT-like electronic parsing from standard outputs:
   - band gap metadata from `EIGENVAL`
   - DOS metadata from `DOSCAR`
+  - chart-ready total DOS profile points from `DOSCAR` (`E-Efermi`, total DOS)
 - hardened structured errors across direct/API/UI flows:
   - stable machine-readable error codes
   - consistent HTTP/detail mapping for adapters
@@ -63,6 +64,7 @@ pyvasp-cli convergence-profile /absolute/path/to/OUTCAR --mode direct
 pyvasp-cli ionic-series /absolute/path/to/OUTCAR --mode direct
 pyvasp-cli export-tabular /absolute/path/to/OUTCAR --dataset ionic_series --delimiter comma --mode direct
 pyvasp-cli electronic-metadata --eigenval-path /path/to/EIGENVAL --doscar-path /path/to/DOSCAR --mode direct
+pyvasp-cli dos-profile /path/to/DOSCAR --energy-window 4.0 --max-points 600 --mode direct
 pyvasp-cli generate-relax-input /absolute/path/to/structure.json --mode direct --output-dir ./vasp_inputs
 ```
 
@@ -87,6 +89,7 @@ Endpoints:
 - `POST /v1/outcar/ionic-series`
 - `POST /v1/outcar/export-tabular`
 - `POST /v1/electronic/metadata`
+- `POST /v1/electronic/dos-profile`
 - `POST /v1/input/relax-generate`
 
 Error response contract:

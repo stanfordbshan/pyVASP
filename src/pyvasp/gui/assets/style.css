@@ -569,6 +569,48 @@ button.is-loading::after {
   background: linear-gradient(90deg, #2d9a6f, #0f766e);
 }
 
+.line-chart-wrap {
+  display: grid;
+  gap: 8px;
+}
+
+.line-chart {
+  width: 100%;
+  min-height: 220px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.line-chart-bg {
+  fill: #ffffff;
+}
+
+.line-chart-axis {
+  stroke: #b6ccc0;
+  stroke-width: 1.4;
+}
+
+.line-chart-ref {
+  stroke: rgba(15, 118, 110, 0.35);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.line-chart-path {
+  fill: none;
+  stroke: #0f766e;
+  stroke-width: 2;
+}
+
+.line-chart-labels {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 0.85rem;
+}
+
 .kv-list {
   display: grid;
   grid-template-columns: minmax(110px, auto) minmax(0, 1fr);

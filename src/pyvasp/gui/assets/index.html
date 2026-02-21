@@ -122,8 +122,19 @@
                 </select>
               </div>
             </div>
+            <div class="grid-two">
+              <div class="mini-grid">
+                <label for="dos_window_ev">DOS Window Around E-fermi (eV)</label>
+                <input id="dos_window_ev" name="dos_window_ev" type="number" step="any" value="5.0" />
+              </div>
+              <div class="mini-grid">
+                <label for="dos_max_points">Max DOS Points</label>
+                <input id="dos_max_points" name="dos_max_points" type="number" step="1" value="400" />
+              </div>
+            </div>
             <div class="action-grid">
               <button type="button" data-action="electronic_metadata">Electronic Metadata</button>
+              <button type="button" data-action="dos_profile">DOS Profile</button>
               <button type="button" data-action="export_tabular">Export Tabular (CSV)</button>
             </div>
           </article>

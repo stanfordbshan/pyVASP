@@ -15,6 +15,8 @@ from pyvasp.api.schemas import (
     ConvergenceProfileResponseSchema,
     DiagnosticsRequestSchema,
     DiagnosticsResponseSchema,
+    DosProfileRequestSchema,
+    DosProfileResponseSchema,
     ElectronicMetadataRequestSchema,
     ElectronicMetadataResponseSchema,
     ErrorSchema,
@@ -31,6 +33,7 @@ from pyvasp.application.use_cases import (
     BatchDiagnoseOutcarUseCase,
     BatchSummarizeOutcarUseCase,
     BuildConvergenceProfileUseCase,
+    BuildDosProfileUseCase,
     BuildIonicSeriesUseCase,
     DiagnoseOutcarUseCase,
     ExportOutcarTabularUseCase,
@@ -44,6 +47,7 @@ from pyvasp.core.payloads import (
     validate_batch_summary_request,
     validate_convergence_profile_request,
     validate_diagnostics_request,
+    validate_dos_profile_request,
     validate_electronic_metadata_request,
     validate_export_tabular_request,
     validate_generate_relax_input_request,
@@ -61,6 +65,7 @@ def create_router(
     ionic_series_use_case: BuildIonicSeriesUseCase,
     export_tabular_use_case: ExportOutcarTabularUseCase,
     electronic_use_case: ParseElectronicMetadataUseCase,
+    dos_profile_use_case: BuildDosProfileUseCase,
     relax_input_use_case: GenerateRelaxInputUseCase,
 ) -> APIRouter:
     """Build an APIRouter bound to application use-cases."""
@@ -188,6 +193,22 @@ def create_router(
         if not result.ok or result.value is None:
             _raise_http_from_error(result.error or AppError(ErrorCode.INTERNAL_ERROR, "Unknown application error"))
         return ElectronicMetadataResponseSchema(**result.value.to_mapping())
+
+    @router.post(
+        "/v1/electronic/dos-profile",
+        response_model=DosProfileResponseSchema,
+        responses=error_responses,
+    )
+    def electronic_dos_profile(request: DosProfileRequestSchema) -> DosProfileResponseSchema:
+        try:
+            payload = validate_dos_profile_request(request.model_dump())
+        except Exception as exc:
+            _raise_http_from_error(normalize_error(exc))
+
+        result = dos_profile_use_case.execute(payload)
+        if not result.ok or result.value is None:
+            _raise_http_from_error(result.error or AppError(ErrorCode.INTERNAL_ERROR, "Unknown application error"))
+        return DosProfileResponseSchema(**result.value.to_mapping())
 
     @router.post(
         "/v1/input/relax-generate",

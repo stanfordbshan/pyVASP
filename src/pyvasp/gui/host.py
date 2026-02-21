@@ -76,6 +76,14 @@ class UiElectronicMetadataRequest(BaseModel):
     doscar_path: str | None = Field(default=None)
 
 
+class UiDosProfileRequest(BaseModel):
+    """GUI DOS profile request schema."""
+
+    doscar_path: str = Field(..., description="Path to DOSCAR")
+    energy_window_ev: float = Field(default=5.0)
+    max_points: int = Field(default=400)
+
+
 class UiRelaxInputRequest(BaseModel):
     """GUI relaxation-input generation request schema."""
 
@@ -224,6 +232,17 @@ def create_gui_app(
             return app.state.bridge.parse_electronic_metadata(
                 eigenval_path=request.eigenval_path,
                 doscar_path=request.doscar_path,
+            )
+        except Exception as exc:
+            _raise_ui_http_error(exc)
+
+    @app.post("/ui/dos-profile")
+    def ui_dos_profile(request: UiDosProfileRequest) -> dict:
+        try:
+            return app.state.bridge.parse_dos_profile(
+                doscar_path=request.doscar_path,
+                energy_window_ev=request.energy_window_ev,
+                max_points=request.max_points,
             )
         except Exception as exc:
             _raise_ui_http_error(exc)

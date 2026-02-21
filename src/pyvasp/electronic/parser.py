@@ -9,6 +9,8 @@ from pyvasp.core.errors import ErrorCode, ParseError
 from pyvasp.core.models import (
     BandGapChannel,
     BandGapSummary,
+    DosProfile,
+    DosProfilePoint,
     DosMetadata,
     ElectronicStructureMetadata,
 )
@@ -138,7 +140,129 @@ class ElectronicParser:
 
     def parse_doscar_file(self, path: Path) -> DosMetadata:
         """Parse DOSCAR header and total DOS table metadata."""
+        parsed = self._parse_doscar_table(path)
+        energies = parsed["energies"]
+        dos_totals = parsed["dos_totals"]
+        efermi = parsed["efermi_ev"]
 
+        energy_step = None
+        if len(energies) >= 2:
+            energy_step = energies[1] - energies[0]
+
+        idx_fermi = min(range(len(energies)), key=lambda i: abs(energies[i] - efermi))
+        dos_at_fermi = dos_totals[idx_fermi]
+
+        return DosMetadata(
+            energy_min_ev=parsed["energy_min_ev"],
+            energy_max_ev=parsed["energy_max_ev"],
+            nedos=parsed["nedos"],
+            efermi_ev=efermi,
+            is_spin_polarized=parsed["is_spin_polarized"],
+            has_integrated_dos=parsed["has_integrated_dos"],
+            energy_step_ev=energy_step,
+            total_dos_at_fermi=dos_at_fermi,
+        )
+
+    def parse_dos_profile(
+        self,
+        *,
+        doscar_path: Path,
+        energy_window_ev: float = 5.0,
+        max_points: int = 400,
+    ) -> DosProfile:
+        """Parse DOSCAR into plotting-friendly total DOS points around E-fermi."""
+
+        if energy_window_ev <= 0:
+            raise ParseError("energy_window_ev must be > 0")
+        if max_points <= 0:
+            raise ParseError("max_points must be > 0")
+
+        parsed = self._parse_doscar_table(doscar_path)
+        efermi = parsed["efermi_ev"]
+        energies = parsed["energies"]
+        dos_totals = parsed["dos_totals"]
+
+        selected: list[tuple[float, float]] = []
+        for energy, dos_total in zip(energies, dos_totals):
+            if abs(energy - efermi) <= energy_window_ev:
+                selected.append((energy, dos_total))
+
+        warnings: list[str] = []
+        if not selected:
+            selected = list(zip(energies, dos_totals))
+            warnings.append("Requested energy window had no points; returning full DOS range")
+
+        sampled = selected
+        if len(selected) > max_points:
+            sampled = [selected[idx] for idx in self._sample_indices(len(selected), max_points)]
+            warnings.append(
+                f"DOS points were downsampled from {len(selected)} to {len(sampled)} for UI-friendly rendering"
+            )
+
+        points = tuple(
+            DosProfilePoint(
+                index=index + 1,
+                energy_ev=energy,
+                energy_relative_ev=energy - efermi,
+                dos_total=dos_total,
+            )
+            for index, (energy, dos_total) in enumerate(sampled)
+        )
+
+        return DosProfile(
+            source_path=str(doscar_path),
+            efermi_ev=efermi,
+            energy_window_ev=energy_window_ev,
+            points=points,
+            warnings=tuple(warnings),
+        )
+
+    def _parse_counts(self, lines: Sequence[str]) -> tuple[int, int]:
+        counts = lines[5].split()
+        if len(counts) < 3:
+            raise ParseError("Unable to parse EIGENVAL counts line")
+
+        try:
+            n_kpoints = int(float(counts[1]))
+            n_bands = int(float(counts[2]))
+        except ValueError as exc:
+            raise ParseError("EIGENVAL counts line contains invalid values") from exc
+
+        if n_kpoints <= 0 or n_bands <= 0:
+            raise ParseError("EIGENVAL counts line has non-positive values")
+
+        return (n_kpoints, n_bands)
+
+    def _build_channel_gap(self, spin: str, data: list[tuple[float, float, int]]) -> BandGapChannel:
+        occupied = [(energy, kidx) for energy, occ, kidx in data if occ > 1e-3]
+        unoccupied = [(energy, kidx) for energy, occ, kidx in data if occ <= 1e-3]
+
+        if not occupied or not unoccupied:
+            raise ParseError(f"Insufficient occupied/unoccupied states for spin channel: {spin}")
+
+        vbm_ev, vbm_kidx = max(occupied, key=lambda item: item[0])
+        cbm_ev, cbm_kidx = min(unoccupied, key=lambda item: item[0])
+
+        raw_gap = cbm_ev - vbm_ev
+        gap_ev = raw_gap if raw_gap > 0 else 0.0
+        is_metal = gap_ev <= 1e-6
+
+        return BandGapChannel(
+            spin=spin,
+            gap_ev=gap_ev,
+            vbm_ev=vbm_ev,
+            cbm_ev=cbm_ev,
+            is_direct=vbm_kidx == cbm_kidx,
+            kpoint_index_vbm=vbm_kidx,
+            kpoint_index_cbm=cbm_kidx,
+            is_metal=is_metal,
+        )
+
+    def _ensure_channel_count(self, channels: list[list[tuple[float, float, int]]], count: int) -> None:
+        while len(channels) < count:
+            channels.append([])
+
+    def _parse_doscar_table(self, path: Path) -> dict[str, object]:
         try:
             lines = path.read_text(encoding="utf-8", errors="ignore").splitlines()
         except OSError as exc:
@@ -203,68 +327,25 @@ class ElectronicParser:
         if not energies:
             raise ParseError("Unable to parse total DOS data from DOSCAR")
 
-        energy_step = None
-        if len(energies) >= 2:
-            energy_step = energies[1] - energies[0]
+        return {
+            "energy_max_ev": energy_max,
+            "energy_min_ev": energy_min,
+            "nedos": nedos,
+            "efermi_ev": efermi,
+            "is_spin_polarized": is_spin_polarized,
+            "has_integrated_dos": has_integrated_dos,
+            "energies": energies,
+            "dos_totals": dos_totals,
+        }
 
-        idx_fermi = min(range(len(energies)), key=lambda i: abs(energies[i] - efermi))
-        dos_at_fermi = dos_totals[idx_fermi]
+    def _sample_indices(self, total_points: int, max_points: int) -> list[int]:
+        if total_points <= max_points:
+            return list(range(total_points))
+        if max_points <= 1:
+            return [0]
 
-        return DosMetadata(
-            energy_min_ev=energy_min,
-            energy_max_ev=energy_max,
-            nedos=nedos,
-            efermi_ev=efermi,
-            is_spin_polarized=is_spin_polarized,
-            has_integrated_dos=has_integrated_dos,
-            energy_step_ev=energy_step,
-            total_dos_at_fermi=dos_at_fermi,
-        )
-
-    def _parse_counts(self, lines: Sequence[str]) -> tuple[int, int]:
-        counts = lines[5].split()
-        if len(counts) < 3:
-            raise ParseError("Unable to parse EIGENVAL counts line")
-
-        try:
-            n_kpoints = int(float(counts[1]))
-            n_bands = int(float(counts[2]))
-        except ValueError as exc:
-            raise ParseError("EIGENVAL counts line contains invalid values") from exc
-
-        if n_kpoints <= 0 or n_bands <= 0:
-            raise ParseError("EIGENVAL counts line has non-positive values")
-
-        return (n_kpoints, n_bands)
-
-    def _build_channel_gap(self, spin: str, data: list[tuple[float, float, int]]) -> BandGapChannel:
-        occupied = [(energy, kidx) for energy, occ, kidx in data if occ > 1e-3]
-        unoccupied = [(energy, kidx) for energy, occ, kidx in data if occ <= 1e-3]
-
-        if not occupied or not unoccupied:
-            raise ParseError(f"Insufficient occupied/unoccupied states for spin channel: {spin}")
-
-        vbm_ev, vbm_kidx = max(occupied, key=lambda item: item[0])
-        cbm_ev, cbm_kidx = min(unoccupied, key=lambda item: item[0])
-
-        raw_gap = cbm_ev - vbm_ev
-        gap_ev = raw_gap if raw_gap > 0 else 0.0
-        is_metal = gap_ev <= 1e-6
-
-        return BandGapChannel(
-            spin=spin,
-            gap_ev=gap_ev,
-            vbm_ev=vbm_ev,
-            cbm_ev=cbm_ev,
-            is_direct=vbm_kidx == cbm_kidx,
-            kpoint_index_vbm=vbm_kidx,
-            kpoint_index_cbm=cbm_kidx,
-            is_metal=is_metal,
-        )
-
-    def _ensure_channel_count(self, channels: list[list[tuple[float, float, int]]], count: int) -> None:
-        while len(channels) < count:
-            channels.append([])
+        last_index = total_points - 1
+        return [int(i * last_index / (max_points - 1)) for i in range(max_points)]
 
 
 def _all_float(tokens: Sequence[str]) -> bool:

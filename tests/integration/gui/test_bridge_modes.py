@@ -74,6 +74,14 @@ def test_bridge_direct_mode_profile_electronic_and_input_generation() -> None:
     )
     assert electronic["band_gap"]["fundamental_gap_ev"] == 1.3
 
+    dos_profile = bridge.parse_dos_profile(
+        doscar_path=str(DOSCAR_FIXTURE),
+        energy_window_ev=2.0,
+        max_points=100,
+    )
+    assert dos_profile["source_path"] == str(DOSCAR_FIXTURE)
+    assert dos_profile["n_points"] >= 1
+
     structure = json.loads(STRUCTURE_FIXTURE.read_text(encoding="utf-8"))
     generated = bridge.generate_relax_input(structure=structure)
     assert generated["n_atoms"] == 2
@@ -123,6 +131,8 @@ def test_gui_host_index_exposes_tabbed_workspace() -> None:
     assert "Input Builder" in html
     assert 'id="parse_eigenval"' in html
     assert 'id="parse_doscar"' in html
+    assert 'id="dos_window_ev"' in html
+    assert 'id="dos_max_points"' in html
 
 
 def test_gui_host_ui_pick_folder_endpoint(monkeypatch) -> None:
@@ -211,6 +221,14 @@ def test_gui_host_ui_profile_electronic_and_input_endpoints() -> None:
     )
     assert electronic.status_code == 200
     assert electronic.json()["dos_metadata"]["nedos"] == 5
+
+    dos_profile = client.post(
+        "/ui/dos-profile",
+        json={"doscar_path": str(DOSCAR_FIXTURE), "energy_window_ev": 2.0, "max_points": 100},
+    )
+    assert dos_profile.status_code == 200
+    assert dos_profile.json()["source_path"] == str(DOSCAR_FIXTURE)
+    assert dos_profile.json()["n_points"] >= 1
 
     structure = json.loads(STRUCTURE_FIXTURE.read_text(encoding="utf-8"))
     generated = client.post("/ui/generate-relax-input", json={"structure": structure})

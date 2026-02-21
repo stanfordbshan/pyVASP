@@ -12,6 +12,8 @@ const batchFailFastInput = document.getElementById("batch_fail_fast");
 
 const parseEigenvalInput = document.getElementById("parse_eigenval");
 const parseDoscarInput = document.getElementById("parse_doscar");
+const dosWindowInput = document.getElementById("dos_window_ev");
+const dosMaxPointsInput = document.getElementById("dos_max_points");
 const exportDatasetInput = document.getElementById("export_dataset");
 const exportDelimiterInput = document.getElementById("export_delimiter");
 
@@ -45,6 +47,7 @@ const ACTION_LABELS = {
   batch_summary: "Batch Summary",
   batch_diagnostics: "Batch Diagnostics",
   electronic_metadata: "Electronic Metadata",
+  dos_profile: "DOS Profile",
   export_tabular: "Export Tabular",
   generate_relax_input: "Generate Relax Input",
 };
@@ -323,6 +326,17 @@ function buildOperationRequest(action) {
     };
   }
 
+  if (action === "dos_profile") {
+    return {
+      endpoint: "/ui/dos-profile",
+      payload: {
+        doscar_path: resolvePrimaryFilePath(outputDir, "DOSCAR"),
+        energy_window_ev: readPositiveNumber(dosWindowInput, "DOS window"),
+        max_points: readPositiveInteger(dosMaxPointsInput, "Max DOS points"),
+      },
+    };
+  }
+
   if (action === "export_tabular") {
     return {
       endpoint: "/ui/export-tabular",
@@ -597,6 +611,10 @@ function buildRenderedResult(action, payload) {
 
   if (action === "electronic_metadata") {
     return renderElectronicMetadata(payload);
+  }
+
+  if (action === "dos_profile") {
+    return renderDosProfile(payload);
   }
 
   if (action === "export_tabular") {
@@ -993,6 +1011,51 @@ function renderElectronicMetadata(data) {
   return stack;
 }
 
+function renderDosProfile(data) {
+  const stack = createElement("div", "result-stack");
+  const points = Array.isArray(data.points) ? data.points : [];
+
+  const overview = createSection("DOS Profile", data.source_path || "");
+  overview.appendChild(
+    createMetricGrid([
+      { label: "Efermi (eV)", value: data.efermi_ev },
+      { label: "Window (eV)", value: data.energy_window_ev },
+      { label: "Points", value: data.n_points },
+      { label: "Min Relative Energy (eV)", value: points.length ? points[0].energy_relative_ev : null },
+      {
+        label: "Max Relative Energy (eV)",
+        value: points.length ? points[points.length - 1].energy_relative_ev : null,
+      },
+    ])
+  );
+  appendWarnings(overview, data.warnings);
+  stack.appendChild(overview);
+
+  if (points.length > 0) {
+    const chartSection = createSection("DOS Curve", "Total DOS versus relative energy around E-fermi.");
+    chartSection.appendChild(createLineChart(points));
+    stack.appendChild(chartSection);
+
+    const tableSection = createSection("Point Table", "First 250 sampled points are shown for table readability.");
+    tableSection.appendChild(
+      createTable(
+        [
+          { label: "#", value: (row) => row.index },
+          { label: "Energy (eV)", value: (row) => formatValue(row.energy_ev) },
+          { label: "Relative Energy (eV)", value: (row) => formatValue(row.energy_relative_ev) },
+          { label: "Total DOS", value: (row) => formatValue(row.dos_total) },
+        ],
+        points.slice(0, 250)
+      )
+    );
+    stack.appendChild(tableSection);
+  } else {
+    stack.appendChild(createSection("No Points", "No DOS points were returned for the requested settings."));
+  }
+
+  return stack;
+}
+
 function renderExportTabular(data) {
   const stack = createElement("div", "result-stack");
 
@@ -1179,6 +1242,103 @@ function createSeriesBars(points, field, title, lowerIsBetter = false) {
   return section;
 }
 
+function createLineChart(points) {
+  const values = points.filter(
+    (point) =>
+      typeof point.energy_relative_ev === "number" &&
+      Number.isFinite(point.energy_relative_ev) &&
+      typeof point.dos_total === "number" &&
+      Number.isFinite(point.dos_total)
+  );
+
+  if (values.length < 2) {
+    return createElement("p", "muted", "Not enough points to draw DOS curve.");
+  }
+
+  const width = 760;
+  const height = 260;
+  const padX = 40;
+  const padY = 22;
+
+  const minX = Math.min(...values.map((point) => point.energy_relative_ev));
+  const maxX = Math.max(...values.map((point) => point.energy_relative_ev));
+  const minY = Math.min(...values.map((point) => point.dos_total));
+  const maxY = Math.max(...values.map((point) => point.dos_total));
+
+  const spanX = maxX - minX || 1;
+  const spanY = maxY - minY || 1;
+
+  const polylinePoints = values
+    .map((point) => {
+      const x = padX + ((point.energy_relative_ev - minX) / spanX) * (width - 2 * padX);
+      const y = height - padY - ((point.dos_total - minY) / spanY) * (height - 2 * padY);
+      return `${x.toFixed(2)},${y.toFixed(2)}`;
+    })
+    .join(" ");
+
+  const xZero = padX + ((0 - minX) / spanX) * (width - 2 * padX);
+  const yZero = height - padY - ((0 - minY) / spanY) * (height - 2 * padY);
+
+  const svg = createSvgElement("svg", "line-chart");
+  svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+  svg.setAttribute("role", "img");
+  svg.setAttribute("aria-label", "DOS profile line chart");
+
+  const background = createSvgElement("rect", "line-chart-bg");
+  background.setAttribute("x", "0");
+  background.setAttribute("y", "0");
+  background.setAttribute("width", String(width));
+  background.setAttribute("height", String(height));
+  svg.appendChild(background);
+
+  const axisX = createSvgElement("line", "line-chart-axis");
+  axisX.setAttribute("x1", String(padX));
+  axisX.setAttribute("y1", String(height - padY));
+  axisX.setAttribute("x2", String(width - padX));
+  axisX.setAttribute("y2", String(height - padY));
+  svg.appendChild(axisX);
+
+  const axisY = createSvgElement("line", "line-chart-axis");
+  axisY.setAttribute("x1", String(padX));
+  axisY.setAttribute("y1", String(padY));
+  axisY.setAttribute("x2", String(padX));
+  axisY.setAttribute("y2", String(height - padY));
+  svg.appendChild(axisY);
+
+  if (xZero >= padX && xZero <= width - padX) {
+    const vRef = createSvgElement("line", "line-chart-ref");
+    vRef.setAttribute("x1", xZero.toFixed(2));
+    vRef.setAttribute("y1", String(padY));
+    vRef.setAttribute("x2", xZero.toFixed(2));
+    vRef.setAttribute("y2", String(height - padY));
+    svg.appendChild(vRef);
+  }
+
+  if (yZero >= padY && yZero <= height - padY) {
+    const hRef = createSvgElement("line", "line-chart-ref");
+    hRef.setAttribute("x1", String(padX));
+    hRef.setAttribute("y1", yZero.toFixed(2));
+    hRef.setAttribute("x2", String(width - padX));
+    hRef.setAttribute("y2", yZero.toFixed(2));
+    svg.appendChild(hRef);
+  }
+
+  const line = createSvgElement("polyline", "line-chart-path");
+  line.setAttribute("points", polylinePoints);
+  svg.appendChild(line);
+
+  const labels = createElement("div", "line-chart-labels");
+  labels.appendChild(
+    createElement("span", "muted", `${formatValue(minX)} eV  ..  ${formatValue(maxX)} eV (relative energy)`)
+  );
+  labels.appendChild(createElement("span", "muted", `DOS range: ${formatValue(minY)} .. ${formatValue(maxY)}`));
+
+  const wrapper = createElement("div", "line-chart-wrap");
+  wrapper.appendChild(svg);
+  wrapper.appendChild(labels);
+  return wrapper;
+}
+
 function createKeyValueList(entries) {
   const list = createElement("dl", "kv-list");
 
@@ -1300,6 +1460,14 @@ function createElement(tag, className = "", text = "") {
   }
   if (text) {
     element.textContent = text;
+  }
+  return element;
+}
+
+function createSvgElement(tag, className = "") {
+  const element = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  if (className) {
+    element.setAttribute("class", className);
   }
   return element;
 }

@@ -251,6 +251,41 @@ def test_api_electronic_metadata_requires_one_file() -> None:
     assert "At least one" in detail["message"]
 
 
+def test_api_dos_profile_success() -> None:
+    client = TestClient(create_app())
+    response = client.post(
+        "/v1/electronic/dos-profile",
+        json={
+            "doscar_path": str(DOSCAR_FIXTURE),
+            "energy_window_ev": 2.0,
+            "max_points": 100,
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["source_path"] == str(DOSCAR_FIXTURE)
+    assert body["n_points"] > 0
+    assert body["efermi_ev"] == 0.5
+    assert "energy_relative_ev" in body["points"][0]
+
+
+def test_api_dos_profile_bad_request() -> None:
+    client = TestClient(create_app())
+    response = client.post(
+        "/v1/electronic/dos-profile",
+        json={
+            "doscar_path": str(DOSCAR_FIXTURE),
+            "energy_window_ev": -1.0,
+        },
+    )
+
+    assert response.status_code == 400
+    detail = response.json()["detail"]
+    assert detail["code"] == "VALIDATION_ERROR"
+    assert "energy_window_ev" in detail["message"]
+
+
 def test_api_generate_relax_input_success() -> None:
     client = TestClient(create_app())
     structure = json.loads(STRUCTURE_FIXTURE.read_text(encoding="utf-8"))

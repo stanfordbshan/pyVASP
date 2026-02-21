@@ -20,6 +20,8 @@ Current capabilities:
 - Electronic metadata (VASPKIT-like):
   - band gap metadata from `EIGENVAL`
   - DOS metadata from `DOSCAR`
+- DOS profile:
+  - total DOS points around `E-fermi` from `DOSCAR` for chart rendering
 - Input generation:
   - generate `INCAR`, `KPOINTS`, `POSCAR` for relaxation from structure JSON
 - Structured failure reporting:
@@ -51,6 +53,7 @@ pyvasp-cli convergence-profile /absolute/path/to/OUTCAR --mode direct
 pyvasp-cli ionic-series /absolute/path/to/OUTCAR --mode direct
 pyvasp-cli export-tabular /absolute/path/to/OUTCAR --dataset ionic_series --delimiter comma --mode direct
 pyvasp-cli electronic-metadata --eigenval-path /absolute/path/to/EIGENVAL --doscar-path /absolute/path/to/DOSCAR --mode direct
+pyvasp-cli dos-profile /absolute/path/to/DOSCAR --energy-window 4.0 --max-points 600 --mode direct
 pyvasp-cli generate-relax-input /absolute/path/to/structure.json --mode direct --output-dir ./vasp_inputs
 ```
 
@@ -75,6 +78,7 @@ Endpoints:
 - `POST /v1/outcar/ionic-series`
 - `POST /v1/outcar/export-tabular`
 - `POST /v1/electronic/metadata`
+- `POST /v1/electronic/dos-profile`
 - `POST /v1/input/relax-generate`
 
 Electronic metadata request example:
@@ -115,7 +119,7 @@ GUI primary UX:
 - Enter one `VASP output folder` for single-file operations.
 - The GUI auto-resolves standard files from that folder:
   - `OUTCAR` for summary/diagnostics/profile/series/export
-  - `EIGENVAL` and `DOSCAR` for electronic metadata
+  - `EIGENVAL` and `DOSCAR` for electronic metadata and DOS profile
 - Navigate by task tabs:
   - `Post-processing`
   - `Batch Screening`

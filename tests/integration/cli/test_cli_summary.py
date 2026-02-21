@@ -140,6 +140,27 @@ def test_cli_electronic_metadata_direct_mode(capsys) -> None:
     assert payload["dos_metadata"]["nedos"] == 5
 
 
+def test_cli_dos_profile_direct_mode(capsys) -> None:
+    exit_code = main(
+        [
+            "dos-profile",
+            str(DOSCAR_FIXTURE),
+            "--energy-window",
+            "2.0",
+            "--max-points",
+            "100",
+            "--mode",
+            "direct",
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    payload = json.loads(captured.out)
+    assert payload["source_path"] == str(DOSCAR_FIXTURE)
+    assert payload["n_points"] > 0
+
+
 def test_cli_generate_relax_input_and_write_files(tmp_path: Path, capsys) -> None:
     output_dir = tmp_path / "vasp_inputs"
     exit_code = main(

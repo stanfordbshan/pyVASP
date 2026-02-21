@@ -43,6 +43,37 @@ def test_parse_doscar_metadata_spin() -> None:
     assert metadata.total_dos_at_fermi == pytest.approx(0.55)
 
 
+def test_parse_dos_profile_with_window_filter() -> None:
+    parser = ElectronicParser()
+    profile = parser.parse_dos_profile(
+        doscar_path=FIXTURE_DOS,
+        energy_window_ev=1.0,
+        max_points=50,
+    )
+
+    assert profile.efermi_ev == pytest.approx(0.5)
+    assert len(profile.points) == 2
+    assert profile.points[0].energy_ev == pytest.approx(0.0)
+    assert profile.points[1].energy_ev == pytest.approx(1.0)
+    assert profile.points[0].energy_relative_ev == pytest.approx(-0.5)
+    assert profile.points[1].energy_relative_ev == pytest.approx(0.5)
+
+
+def test_parse_dos_profile_downsamples_and_warns() -> None:
+    parser = ElectronicParser()
+    profile = parser.parse_dos_profile(
+        doscar_path=FIXTURE_DOS,
+        energy_window_ev=20.0,
+        max_points=3,
+    )
+
+    assert len(profile.points) == 3
+    assert profile.points[0].energy_ev == pytest.approx(-5.0)
+    assert profile.points[1].energy_ev == pytest.approx(0.0)
+    assert profile.points[2].energy_ev == pytest.approx(5.0)
+    assert any("downsampled" in warning for warning in profile.warnings)
+
+
 def test_parse_eigenval_invalid_raises() -> None:
     parser = ElectronicParser()
     with pytest.raises(ParseError):

@@ -219,6 +219,27 @@ class DosMetadata:
 
 
 @dataclass(frozen=True)
+class DosProfilePoint:
+    """One total-DOS sample used for plotting against energy."""
+
+    index: int
+    energy_ev: float
+    energy_relative_ev: float
+    dos_total: float
+
+
+@dataclass(frozen=True)
+class DosProfile:
+    """Chart-ready DOS profile derived from DOSCAR total DOS rows."""
+
+    source_path: str
+    efermi_ev: float
+    energy_window_ev: float
+    points: tuple[DosProfilePoint, ...] = field(default_factory=tuple)
+    warnings: tuple[str, ...] = field(default_factory=tuple)
+
+
+@dataclass(frozen=True)
 class ElectronicStructureMetadata:
     """Combined electronic metadata extracted from standard VASP outputs."""
 

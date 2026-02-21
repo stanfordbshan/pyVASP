@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Protocol
 
 from pyvasp.core.models import (
+    DosProfile,
     ElectronicStructureMetadata,
     GeneratedInputBundle,
     OutcarIonicSeries,
@@ -53,3 +54,16 @@ class ElectronicMetadataReader(Protocol):
         doscar_path: Path | None,
     ) -> ElectronicStructureMetadata:
         """Parse electronic-structure metadata from standard VASP outputs."""
+
+
+class DosProfileReader(Protocol):
+    """Port for method modules that can parse chart-ready DOS profile data."""
+
+    def parse_dos_profile(
+        self,
+        *,
+        doscar_path: Path,
+        energy_window_ev: float,
+        max_points: int,
+    ) -> DosProfile:
+        """Parse DOSCAR and return a filtered total-DOS profile."""

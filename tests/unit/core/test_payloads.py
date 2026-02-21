@@ -10,6 +10,8 @@ from pyvasp.core.models import (
     BandGapChannel,
     BandGapSummary,
     ConvergenceReport,
+    DosProfile,
+    DosProfilePoint,
     DosMetadata,
     ElectronicStructureMetadata,
     EnergyPoint,
@@ -28,6 +30,7 @@ from pyvasp.core.payloads import (
     BatchSummaryResponsePayload,
     BatchSummaryRowPayload,
     DiagnosticsResponsePayload,
+    DosProfileResponsePayload,
     ElectronicMetadataResponsePayload,
     ExportTabularResponsePayload,
     GenerateRelaxInputResponsePayload,
@@ -36,6 +39,7 @@ from pyvasp.core.payloads import (
     validate_batch_diagnostics_request,
     validate_batch_summary_request,
     validate_diagnostics_request,
+    validate_dos_profile_request,
     validate_electronic_metadata_request,
     validate_export_tabular_request,
     validate_generate_relax_input_request,
@@ -122,6 +126,29 @@ def test_validate_electronic_metadata_request_success() -> None:
 def test_validate_electronic_metadata_request_requires_one_file() -> None:
     with pytest.raises(ValidationError):
         validate_electronic_metadata_request({})
+
+
+def test_validate_dos_profile_request_success() -> None:
+    payload = validate_dos_profile_request(
+        {
+            "doscar_path": str(DOSCAR_FIXTURE),
+            "energy_window_ev": 4.0,
+            "max_points": 250,
+        }
+    )
+    assert payload.doscar_path == str(DOSCAR_FIXTURE)
+    assert payload.energy_window_ev == pytest.approx(4.0)
+    assert payload.max_points == 250
+
+
+def test_validate_dos_profile_request_bad_window() -> None:
+    with pytest.raises(ValidationError):
+        validate_dos_profile_request(
+            {
+                "doscar_path": str(DOSCAR_FIXTURE),
+                "energy_window_ev": -1.0,
+            }
+        )
 
 
 def test_validate_generate_relax_input_request_success() -> None:
@@ -274,6 +301,26 @@ def test_electronic_metadata_response_serialization() -> None:
     assert mapped["band_gap"]["fundamental_gap_ev"] == pytest.approx(1.3)
     assert mapped["dos_metadata"]["nedos"] == 5
     assert mapped["warnings"] == ["ok"]
+
+
+def test_dos_profile_response_serialization() -> None:
+    profile = DosProfile(
+        source_path=str(DOSCAR_FIXTURE),
+        efermi_ev=0.5,
+        energy_window_ev=4.0,
+        points=(
+            DosProfilePoint(index=1, energy_ev=-1.0, energy_relative_ev=-1.5, dos_total=0.2),
+            DosProfilePoint(index=2, energy_ev=0.5, energy_relative_ev=0.0, dos_total=0.4),
+        ),
+        warnings=("sampled",),
+    )
+
+    payload = DosProfileResponsePayload.from_profile(profile)
+    mapped = payload.to_mapping()
+    assert mapped["source_path"] == str(DOSCAR_FIXTURE)
+    assert mapped["n_points"] == 2
+    assert mapped["points"][1]["dos_total"] == pytest.approx(0.4)
+    assert mapped["warnings"] == ["sampled"]
 
 
 def test_generate_relax_input_response_payload() -> None:

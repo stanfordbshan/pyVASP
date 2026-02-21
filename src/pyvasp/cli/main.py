@@ -113,6 +113,25 @@ def build_parser() -> argparse.ArgumentParser:
     electronic.add_argument("--doscar-path", help="Path to DOSCAR", default=None)
     _add_shared_backend_args(electronic)
 
+    dos_profile = subparsers.add_parser(
+        "dos-profile",
+        help="Parse chart-ready total DOS profile from DOSCAR",
+    )
+    dos_profile.add_argument("doscar_path", help="Path to DOSCAR")
+    dos_profile.add_argument(
+        "--energy-window",
+        type=float,
+        default=5.0,
+        help="Energy window around E-fermi in eV",
+    )
+    dos_profile.add_argument(
+        "--max-points",
+        type=int,
+        default=400,
+        help="Maximum sampled DOS points",
+    )
+    _add_shared_backend_args(dos_profile)
+
     generate = subparsers.add_parser("generate-relax-input", help="Generate INCAR/KPOINTS/POSCAR for relaxation")
     generate.add_argument("structure_json", help="Path to structure JSON payload")
     generate.add_argument("--output-dir", help="Optional output directory for writing INCAR/KPOINTS/POSCAR")
@@ -173,6 +192,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "electronic-metadata":
         return _run_electronic_metadata(bridge, args)
+
+    if args.command == "dos-profile":
+        return _run_dos_profile(bridge, args)
 
     if args.command == "generate-relax-input":
         return _run_generate_relax_input(bridge, args)
@@ -295,6 +317,21 @@ def _run_electronic_metadata(bridge: GuiBackendBridge, args: argparse.Namespace)
         data = bridge.parse_electronic_metadata(
             eigenval_path=args.eigenval_path,
             doscar_path=args.doscar_path,
+        )
+    except Exception as exc:
+        print(json.dumps({"error": str(exc)}), file=sys.stderr)
+        return 1
+
+    print(json.dumps(data, indent=2))
+    return 0
+
+
+def _run_dos_profile(bridge: GuiBackendBridge, args: argparse.Namespace) -> int:
+    try:
+        data = bridge.parse_dos_profile(
+            doscar_path=args.doscar_path,
+            energy_window_ev=args.energy_window,
+            max_points=args.max_points,
         )
     except Exception as exc:
         print(json.dumps({"error": str(exc)}), file=sys.stderr)
