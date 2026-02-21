@@ -1,6 +1,6 @@
 # pyVASP Developer Manual
 
-## 1. File Tree (Phase 4.3 + Tabular Export)
+## 1. File Tree (Phase 4.4 + Batch Summary)
 
 ```text
 pyVASP/
@@ -93,6 +93,7 @@ pyVASP/
 ### application
 - Transport-agnostic use-cases:
   - `SummarizeOutcarUseCase`
+  - `BatchSummarizeOutcarUseCase`
   - `DiagnoseOutcarUseCase`
   - `BuildConvergenceProfileUseCase`
   - `BuildIonicSeriesUseCase`
@@ -125,6 +126,7 @@ Mandatory direction:
 
 All adapter entry points call core validators first:
 - summary
+- batch summary
 - diagnostics
 - convergence profile
 - ionic series

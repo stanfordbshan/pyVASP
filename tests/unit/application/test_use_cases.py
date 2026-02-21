@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from pyvasp.application.use_cases import (
+    BatchSummarizeOutcarUseCase,
     BuildConvergenceProfileUseCase,
     BuildIonicSeriesUseCase,
     DiagnoseOutcarUseCase,
@@ -28,6 +29,7 @@ from pyvasp.core.models import (
     StressTensor,
 )
 from pyvasp.core.payloads import (
+    BatchSummaryRequestPayload,
     ConvergenceProfileRequestPayload,
     DiagnosticsRequestPayload,
     ElectronicMetadataRequestPayload,
@@ -211,6 +213,40 @@ def test_summary_use_case_failure() -> None:
     assert result.error is not None
     assert result.error.code == ErrorCode.PARSE_ERROR
     assert result.error.message == "failed"
+
+
+def test_batch_summary_use_case_mixed_results() -> None:
+    use_case = BatchSummarizeOutcarUseCase(reader=WorkingSummaryReader())
+    request = BatchSummaryRequestPayload(
+        outcar_paths=(str(FIXTURE), "/missing/OUTCAR"),
+        fail_fast=False,
+    )
+
+    result = use_case.execute(request)
+    assert result.ok is True
+    assert result.value is not None
+    assert result.value.total_count == 2
+    assert result.value.success_count == 1
+    assert result.value.error_count == 1
+    assert result.value.rows[0].status == "ok"
+    assert result.value.rows[1].status == "error"
+    assert result.value.rows[1].error is not None
+    assert result.value.rows[1].error["code"] == "FILE_NOT_FOUND"
+
+
+def test_batch_summary_use_case_fail_fast_stops_early() -> None:
+    use_case = BatchSummarizeOutcarUseCase(reader=WorkingSummaryReader())
+    request = BatchSummaryRequestPayload(
+        outcar_paths=("/missing/OUTCAR", str(FIXTURE)),
+        fail_fast=True,
+    )
+
+    result = use_case.execute(request)
+    assert result.ok is True
+    assert result.value is not None
+    assert result.value.total_count == 1
+    assert result.value.success_count == 0
+    assert result.value.error_count == 1
 
 
 def test_diagnostics_use_case_success() -> None:

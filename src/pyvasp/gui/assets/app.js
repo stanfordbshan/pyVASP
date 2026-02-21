@@ -32,6 +32,17 @@ form.addEventListener("submit", async (event) => {
   } else if (operation === "convergence_profile") {
     endpoint = "/ui/convergence-profile";
     payload = { outcar_path: outcarPath };
+  } else if (operation === "batch_summary") {
+    endpoint = "/ui/batch-summary";
+    const raw = document.getElementById("batch_outcar_paths").value;
+    const outcarPaths = raw
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+    payload = {
+      outcar_paths: outcarPaths,
+      fail_fast: document.getElementById("batch_fail_fast").checked,
+    };
   } else if (operation === "ionic_series") {
     endpoint = "/ui/ionic-series";
     payload = { outcar_path: outcarPath };

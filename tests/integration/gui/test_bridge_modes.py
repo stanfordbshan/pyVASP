@@ -50,6 +50,14 @@ def test_bridge_direct_mode_profile_electronic_and_input_generation() -> None:
     assert exported["n_rows"] == 2
     assert "external_pressure_kb" in exported["content"]
 
+    batch = bridge.batch_summarize_outcars(
+        outcar_paths=[str(FIXTURE), "/missing/OUTCAR"],
+        fail_fast=False,
+    )
+    assert batch["total_count"] == 2
+    assert batch["error_count"] == 1
+    assert batch["rows"][1]["error"]["code"] == "FILE_NOT_FOUND"
+
     electronic = bridge.parse_electronic_metadata(
         eigenval_path=str(EIGENVAL_FIXTURE),
         doscar_path=str(DOSCAR_FIXTURE),
@@ -137,6 +145,14 @@ def test_gui_host_ui_profile_electronic_and_input_endpoints() -> None:
     )
     assert exported.status_code == 200
     assert exported.json()["n_rows"] == 2
+
+    batch = client.post(
+        "/ui/batch-summary",
+        json={"outcar_paths": [str(FIXTURE), "/missing/OUTCAR"], "fail_fast": False},
+    )
+    assert batch.status_code == 200
+    assert batch.json()["total_count"] == 2
+    assert batch.json()["error_count"] == 1
 
     electronic = client.post(
         "/ui/electronic-metadata",

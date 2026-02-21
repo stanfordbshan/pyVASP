@@ -2,8 +2,10 @@
 
 pyVASP is a layered Python toolkit for VASP input generation, post-processing, and visualization workflows.
 
-Phase 1-4.3 capabilities now include:
+Phase 1-4.4 capabilities now include:
 - OUTCAR summary and diagnostics (energy/force/pressure/stress/magnetization/convergence)
+- batch OUTCAR summary for high-throughput screening:
+  - mixed success/error rows with per-item structured error payloads
 - convergence profile output for chart-ready visualization
 - ionic-step series output for multi-metric visualization:
   - per-step energy, force, external pressure, and Fermi energy
@@ -52,6 +54,7 @@ python -m pip install -e .[dev]
 
 ```bash
 pyvasp-cli summary /absolute/path/to/OUTCAR --mode direct --include-history
+pyvasp-cli batch-summary /path/A/OUTCAR /path/B/OUTCAR --mode direct
 pyvasp-cli diagnostics /absolute/path/to/OUTCAR --mode direct --energy-tol 1e-4 --force-tol 0.02
 pyvasp-cli convergence-profile /absolute/path/to/OUTCAR --mode direct
 pyvasp-cli ionic-series /absolute/path/to/OUTCAR --mode direct
@@ -74,6 +77,7 @@ pyvasp-api
 
 Endpoints:
 - `POST /v1/outcar/summary`
+- `POST /v1/outcar/batch-summary`
 - `POST /v1/outcar/diagnostics`
 - `POST /v1/outcar/convergence-profile`
 - `POST /v1/outcar/ionic-series`

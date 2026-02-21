@@ -22,6 +22,8 @@ from pyvasp.core.models import (
     StructureAtom,
 )
 from pyvasp.core.payloads import (
+    BatchSummaryRequestPayload,
+    BatchSummaryResponsePayload,
     ConvergenceProfileRequestPayload,
     ConvergenceProfileResponsePayload,
     DiagnosticsRequestPayload,
@@ -45,6 +47,8 @@ __all__ = [
     "AppError",
     "BandGapChannel",
     "BandGapSummary",
+    "BatchSummaryRequestPayload",
+    "BatchSummaryResponsePayload",
     "ConvergenceProfile",
     "ConvergenceProfilePoint",
     "ConvergenceProfileRequestPayload",

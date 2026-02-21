@@ -1,6 +1,7 @@
 """Application layer for pyVASP."""
 
 from pyvasp.application.use_cases import (
+    BatchSummarizeOutcarUseCase,
     BuildConvergenceProfileUseCase,
     BuildIonicSeriesUseCase,
     DiagnoseOutcarUseCase,
@@ -12,6 +13,7 @@ from pyvasp.application.use_cases import (
 
 __all__ = [
     "SummarizeOutcarUseCase",
+    "BatchSummarizeOutcarUseCase",
     "DiagnoseOutcarUseCase",
     "BuildConvergenceProfileUseCase",
     "BuildIonicSeriesUseCase",

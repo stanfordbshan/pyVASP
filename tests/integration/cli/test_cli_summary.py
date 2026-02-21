@@ -22,6 +22,25 @@ def test_cli_summary_direct_mode(capsys) -> None:
     assert payload["final_total_energy_ev"] == -10.5
 
 
+def test_cli_batch_summary_direct_mode(capsys) -> None:
+    exit_code = main(
+        [
+            "batch-summary",
+            str(FIXTURE),
+            "/missing/OUTCAR",
+            "--mode",
+            "direct",
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    payload = json.loads(captured.out)
+    assert payload["total_count"] == 2
+    assert payload["success_count"] == 1
+    assert payload["error_count"] == 1
+
+
 def test_cli_diagnostics_direct_mode(capsys) -> None:
     exit_code = main(["diagnostics", str(FIXTURE_PHASE2), "--mode", "direct"])
     captured = capsys.readouterr()

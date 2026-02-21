@@ -22,6 +22,13 @@ class UiSummaryRequest(BaseModel):
     include_history: bool = Field(default=False)
 
 
+class UiBatchSummaryRequest(BaseModel):
+    """GUI batch summary request schema."""
+
+    outcar_paths: list[str] = Field(..., description="OUTCAR path list")
+    fail_fast: bool = Field(default=False)
+
+
 class UiDiagnosticsRequest(BaseModel):
     """GUI diagnostics request schema."""
 
@@ -120,6 +127,16 @@ def create_gui_app(
             return app.state.bridge.summarize_outcar(
                 outcar_path=request.outcar_path,
                 include_history=request.include_history,
+            )
+        except Exception as exc:
+            _raise_ui_http_error(exc)
+
+    @app.post("/ui/batch-summary")
+    def ui_batch_summary(request: UiBatchSummaryRequest) -> dict:
+        try:
+            return app.state.bridge.batch_summarize_outcars(
+                outcar_paths=request.outcar_paths,
+                fail_fast=request.fail_fast,
             )
         except Exception as exc:
             _raise_ui_http_error(exc)

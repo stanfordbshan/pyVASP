@@ -10,9 +10,12 @@ from pyvasp.application.ports import (
     RelaxInputBuilder,
 )
 from pyvasp.core.analysis import build_convergence_profile, build_convergence_report
-from pyvasp.core.errors import ParseError, ValidationError
+from pyvasp.core.errors import ParseError, ValidationError, normalize_error
 from pyvasp.core.models import OutcarDiagnostics
 from pyvasp.core.payloads import (
+    BatchSummaryRequestPayload,
+    BatchSummaryResponsePayload,
+    BatchSummaryRowPayload,
     ConvergenceProfileRequestPayload,
     ConvergenceProfileResponsePayload,
     DiagnosticsRequestPayload,
@@ -30,6 +33,7 @@ from pyvasp.core.payloads import (
 )
 from pyvasp.core.result import AppResult
 from pyvasp.core.tabular import build_csv_text
+from pyvasp.core.validators import validate_outcar_path
 
 
 class SummarizeOutcarUseCase:
@@ -47,6 +51,46 @@ class SummarizeOutcarUseCase:
             return AppResult.success(payload)
         except (ValidationError, ParseError, OSError) as exc:
             return AppResult.failure(exc)
+
+
+class BatchSummarizeOutcarUseCase:
+    """Summarize multiple OUTCAR files and preserve per-item success/failure rows."""
+
+    def __init__(self, reader: OutcarSummaryReader) -> None:
+        self._reader = reader
+
+    def execute(self, request: BatchSummaryRequestPayload) -> AppResult[BatchSummaryResponsePayload]:
+        """Run batch summary extraction and return a typed aggregate result."""
+
+        rows: list[BatchSummaryRowPayload] = []
+        success_count = 0
+        error_count = 0
+
+        for outcar_path in request.outcar_paths:
+            try:
+                resolved = validate_outcar_path(outcar_path)
+                summary = self._reader.parse_file(resolved)
+                rows.append(BatchSummaryRowPayload.from_summary(summary))
+                success_count += 1
+            except Exception as exc:
+                rows.append(
+                    BatchSummaryRowPayload.from_error(
+                        outcar_path=outcar_path,
+                        error=normalize_error(exc),
+                    )
+                )
+                error_count += 1
+                if request.fail_fast:
+                    break
+
+        return AppResult.success(
+            BatchSummaryResponsePayload(
+                total_count=len(rows),
+                success_count=success_count,
+                error_count=error_count,
+                rows=tuple(rows),
+            )
+        )
 
 
 class DiagnoseOutcarUseCase:

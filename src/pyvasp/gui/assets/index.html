@@ -15,6 +15,7 @@
         <label for="operation">Operation</label>
         <select id="operation" name="operation">
           <option value="summary">Summary</option>
+          <option value="batch_summary">Batch Summary</option>
           <option value="diagnostics">Diagnostics</option>
           <option value="convergence_profile">Convergence Profile</option>
           <option value="ionic_series">Ionic Series</option>
@@ -39,6 +40,9 @@
         <label for="outcar_path">OUTCAR Path</label>
         <input id="outcar_path" name="outcar_path" type="text" placeholder="/path/to/OUTCAR" />
 
+        <label for="batch_outcar_paths">Batch OUTCAR Paths (one per line)</label>
+        <textarea id="batch_outcar_paths" name="batch_outcar_paths" rows="5" placeholder="/path/one/OUTCAR&#10;/path/two/OUTCAR"></textarea>
+
         <label for="eigenval_path">EIGENVAL Path</label>
         <input id="eigenval_path" name="eigenval_path" type="text" placeholder="/path/to/EIGENVAL" />
 
@@ -48,6 +52,11 @@
         <label class="checkbox">
           <input id="include_history" name="include_history" type="checkbox" />
           Include energy history (summary mode)
+        </label>
+
+        <label class="checkbox">
+          <input id="batch_fail_fast" name="batch_fail_fast" type="checkbox" />
+          Batch fail-fast (stop after first failed row)
         </label>
 
         <div class="grid-two">

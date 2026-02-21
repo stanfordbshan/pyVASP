@@ -14,6 +14,13 @@ class SummaryRequestSchema(BaseModel):
     include_history: bool = Field(default=False, description="Include full TOTEN history")
 
 
+class BatchSummaryRequestSchema(BaseModel):
+    """Request payload for batch OUTCAR summary endpoint."""
+
+    outcar_paths: list[str] = Field(..., description="List of OUTCAR file paths")
+    fail_fast: bool = Field(default=False, description="Stop processing after the first failed item")
+
+
 class DiagnosticsRequestSchema(BaseModel):
     """Request payload for OUTCAR diagnostics endpoint."""
 
@@ -193,6 +200,31 @@ class SummaryResponseSchema(BaseModel):
     max_force_ev_per_a: float | None
     energy_history: list[EnergyPointSchema]
     warnings: list[str]
+
+
+class BatchSummaryRowSchema(BaseModel):
+    """Per-OUTCAR summary row for batch endpoint responses."""
+
+    outcar_path: str
+    status: str
+    system_name: str | None
+    nions: int | None
+    ionic_steps: int | None
+    electronic_iterations: int | None
+    final_total_energy_ev: float | None
+    final_fermi_energy_ev: float | None
+    max_force_ev_per_a: float | None
+    warnings: list[str]
+    error: dict[str, Any] | None
+
+
+class BatchSummaryResponseSchema(BaseModel):
+    """Response schema for batch OUTCAR summary endpoint."""
+
+    total_count: int
+    success_count: int
+    error_count: int
+    rows: list[BatchSummaryRowSchema]
 
 
 class DiagnosticsResponseSchema(BaseModel):

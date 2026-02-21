@@ -8,7 +8,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from pyvasp.core.errors import ValidationError
+from pyvasp.core.errors import AppError, ValidationError
 from pyvasp.core.models import (
     BandGapSummary,
     ConvergenceProfile,
@@ -51,6 +51,32 @@ class SummaryRequestPayload:
 
     def validated_path(self) -> Path:
         return validate_outcar_path(self.outcar_path)
+
+
+@dataclass(frozen=True)
+class BatchSummaryRequestPayload:
+    """Canonical request payload for batch OUTCAR summarization."""
+
+    outcar_paths: tuple[str, ...]
+    fail_fast: bool = False
+
+    @classmethod
+    def from_mapping(cls, raw: dict[str, Any]) -> "BatchSummaryRequestPayload":
+        paths_raw = raw.get("outcar_paths")
+        if not isinstance(paths_raw, (list, tuple)) or not paths_raw:
+            raise ValidationError("outcar_paths must be a non-empty list of paths")
+
+        normalized: list[str] = []
+        for idx, value in enumerate(paths_raw, start=1):
+            token = str(value).strip()
+            if not token:
+                raise ValidationError(f"outcar_paths[{idx}] must be a non-empty path string")
+            normalized.append(token)
+
+        return cls(
+            outcar_paths=tuple(normalized),
+            fail_fast=bool(raw.get("fail_fast", False)),
+        )
 
 
 @dataclass(frozen=True)
@@ -337,6 +363,83 @@ class SummaryResponsePayload:
 
 
 @dataclass(frozen=True)
+class BatchSummaryRowPayload:
+    """Per-OUTCAR batch summary row for adapters."""
+
+    outcar_path: str
+    status: str
+    system_name: str | None
+    nions: int | None
+    ionic_steps: int | None
+    electronic_iterations: int | None
+    final_total_energy_ev: float | None
+    final_fermi_energy_ev: float | None
+    max_force_ev_per_a: float | None
+    warnings: tuple[str, ...]
+    error: dict[str, Any] | None = None
+
+    @classmethod
+    def from_summary(cls, summary: OutcarSummary) -> "BatchSummaryRowPayload":
+        return cls(
+            outcar_path=summary.source_path,
+            status="ok",
+            system_name=summary.system_name,
+            nions=summary.nions,
+            ionic_steps=summary.ionic_steps,
+            electronic_iterations=summary.electronic_iterations,
+            final_total_energy_ev=summary.final_total_energy_ev,
+            final_fermi_energy_ev=summary.final_fermi_energy_ev,
+            max_force_ev_per_a=summary.max_force_ev_per_a,
+            warnings=summary.warnings,
+            error=None,
+        )
+
+    @classmethod
+    def from_error(
+        cls,
+        *,
+        outcar_path: str,
+        error: AppError,
+    ) -> "BatchSummaryRowPayload":
+        return cls(
+            outcar_path=outcar_path,
+            status="error",
+            system_name=None,
+            nions=None,
+            ionic_steps=None,
+            electronic_iterations=None,
+            final_total_energy_ev=None,
+            final_fermi_energy_ev=None,
+            max_force_ev_per_a=None,
+            warnings=(),
+            error=error.to_mapping(),
+        )
+
+    def to_mapping(self) -> dict[str, Any]:
+        mapped = asdict(self)
+        mapped["warnings"] = list(self.warnings)
+        return mapped
+
+
+@dataclass(frozen=True)
+class BatchSummaryResponsePayload:
+    """Canonical batch summary response consumed by adapters."""
+
+    total_count: int
+    success_count: int
+    error_count: int
+    rows: tuple[BatchSummaryRowPayload, ...]
+
+    def to_mapping(self) -> dict[str, Any]:
+        return {
+            "total_count": self.total_count,
+            "success_count": self.success_count,
+            "error_count": self.error_count,
+            "rows": [row.to_mapping() for row in self.rows],
+        }
+
+
+@dataclass(frozen=True)
 class DiagnosticsResponsePayload:
     """Canonical diagnostics response consumed by API/GUI/CLI adapters."""
 
@@ -544,6 +647,17 @@ def validate_summary_request(raw: dict[str, Any]) -> SummaryRequestPayload:
 
     try:
         return SummaryRequestPayload.from_mapping(raw)
+    except ValidationError:
+        raise
+    except Exception as exc:  # pragma: no cover - defensive normalization
+        raise ValidationError(str(exc)) from exc
+
+
+def validate_batch_summary_request(raw: dict[str, Any]) -> BatchSummaryRequestPayload:
+    """Map arbitrary adapter payload into canonical batch-summary request object."""
+
+    try:
+        return BatchSummaryRequestPayload.from_mapping(raw)
     except ValidationError:
         raise
     except Exception as exc:  # pragma: no cover - defensive normalization

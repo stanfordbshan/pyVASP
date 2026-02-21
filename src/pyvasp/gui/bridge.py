@@ -8,6 +8,7 @@ from typing import Callable
 from urllib import error, request
 
 from pyvasp.application.use_cases import (
+    BatchSummarizeOutcarUseCase,
     BuildConvergenceProfileUseCase,
     BuildIonicSeriesUseCase,
     DiagnoseOutcarUseCase,
@@ -17,6 +18,7 @@ from pyvasp.application.use_cases import (
     SummarizeOutcarUseCase,
 )
 from pyvasp.core.payloads import (
+    validate_batch_summary_request,
     validate_convergence_profile_request,
     validate_diagnostics_request,
     validate_electronic_metadata_request,
@@ -48,6 +50,7 @@ class GuiBackendBridge:
         mode: str = "auto",
         api_base_url: str = "http://127.0.0.1:8000",
         summary_use_case: SummarizeOutcarUseCase | None = None,
+        batch_summary_use_case: BatchSummarizeOutcarUseCase | None = None,
         diagnostics_use_case: DiagnoseOutcarUseCase | None = None,
         profile_use_case: BuildConvergenceProfileUseCase | None = None,
         ionic_series_use_case: BuildIonicSeriesUseCase | None = None,
@@ -60,6 +63,7 @@ class GuiBackendBridge:
 
         outcar_parser = OutcarParser()
         self._summary_use_case = summary_use_case or SummarizeOutcarUseCase(reader=outcar_parser)
+        self._batch_summary_use_case = batch_summary_use_case or BatchSummarizeOutcarUseCase(reader=outcar_parser)
         self._diagnostics_use_case = diagnostics_use_case or DiagnoseOutcarUseCase(reader=outcar_parser)
         self._profile_use_case = profile_use_case or BuildConvergenceProfileUseCase(reader=outcar_parser)
         self._ionic_series_use_case = ionic_series_use_case or BuildIonicSeriesUseCase(reader=outcar_parser)
@@ -82,6 +86,25 @@ class GuiBackendBridge:
             api_path="/v1/outcar/summary",
             direct_call=self._call_direct_summary,
             operation_label="summary",
+        )
+
+    def batch_summarize_outcars(
+        self,
+        *,
+        outcar_paths: list[str],
+        fail_fast: bool = False,
+    ) -> dict:
+        """Summarize multiple OUTCAR files in one execution call."""
+
+        payload = {
+            "outcar_paths": list(outcar_paths),
+            "fail_fast": fail_fast,
+        }
+        return self._execute(
+            payload=payload,
+            api_path="/v1/outcar/batch-summary",
+            direct_call=self._call_direct_batch_summary,
+            operation_label="batch summary",
         )
 
     def diagnose_outcar(
@@ -256,6 +279,16 @@ class GuiBackendBridge:
         result = self._diagnostics_use_case.execute(canonical)
         if not result.ok or result.value is None:
             raise RuntimeError(_format_app_error(result.error, "Unknown direct diagnostics error"))
+        return result.value.to_mapping()
+
+    def _call_direct_batch_summary(self, payload: dict) -> dict:
+        try:
+            canonical = validate_batch_summary_request(payload)
+        except Exception as exc:
+            raise RuntimeError(_format_app_error(normalize_error(exc), "Invalid batch summary request")) from exc
+        result = self._batch_summary_use_case.execute(canonical)
+        if not result.ok or result.value is None:
+            raise RuntimeError(_format_app_error(result.error, "Unknown direct batch summary error"))
         return result.value.to_mapping()
 
     def _call_direct_profile(self, payload: dict) -> dict:
