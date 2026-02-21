@@ -41,6 +41,30 @@ def test_cli_batch_summary_direct_mode(capsys) -> None:
     assert payload["error_count"] == 1
 
 
+def test_cli_batch_diagnostics_direct_mode(capsys) -> None:
+    exit_code = main(
+        [
+            "batch-diagnostics",
+            str(FIXTURE_PHASE2),
+            "/missing/OUTCAR",
+            "--mode",
+            "direct",
+            "--energy-tol",
+            "1e-4",
+            "--force-tol",
+            "0.02",
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    payload = json.loads(captured.out)
+    assert payload["total_count"] == 2
+    assert payload["success_count"] == 1
+    assert payload["rows"][0]["is_converged"] is True
+    assert payload["rows"][1]["error"]["code"] == "FILE_NOT_FOUND"
+
+
 def test_cli_diagnostics_direct_mode(capsys) -> None:
     exit_code = main(["diagnostics", str(FIXTURE_PHASE2), "--mode", "direct"])
     captured = capsys.readouterr()

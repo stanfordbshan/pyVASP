@@ -40,6 +40,27 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_shared_backend_args(batch_summary)
 
+    batch_diagnostics = subparsers.add_parser("batch-diagnostics", help="Diagnose multiple OUTCAR files")
+    batch_diagnostics.add_argument("outcar_paths", nargs="+", help="One or more OUTCAR file paths")
+    batch_diagnostics.add_argument(
+        "--energy-tol",
+        type=float,
+        default=1e-4,
+        help="Energy convergence tolerance in eV (|ΔE| <= tol)",
+    )
+    batch_diagnostics.add_argument(
+        "--force-tol",
+        type=float,
+        default=0.02,
+        help="Force convergence tolerance in eV/Ang (max force <= tol)",
+    )
+    batch_diagnostics.add_argument(
+        "--fail-fast",
+        action="store_true",
+        help="Stop processing after first failed item",
+    )
+    _add_shared_backend_args(batch_diagnostics)
+
     diagnostics = subparsers.add_parser("diagnostics", help="Convergence/stress/magnetization diagnostics")
     diagnostics.add_argument("outcar_path", help="Path to OUTCAR file")
     diagnostics.add_argument(
@@ -135,6 +156,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "batch-summary":
         return _run_batch_summary(bridge, args)
 
+    if args.command == "batch-diagnostics":
+        return _run_batch_diagnostics(bridge, args)
+
     if args.command == "diagnostics":
         return _run_diagnostics(bridge, args)
 
@@ -175,6 +199,22 @@ def _run_batch_summary(bridge: GuiBackendBridge, args: argparse.Namespace) -> in
     try:
         data = bridge.batch_summarize_outcars(
             outcar_paths=args.outcar_paths,
+            fail_fast=args.fail_fast,
+        )
+    except Exception as exc:
+        print(json.dumps({"error": str(exc)}), file=sys.stderr)
+        return 1
+
+    print(json.dumps(data, indent=2))
+    return 0
+
+
+def _run_batch_diagnostics(bridge: GuiBackendBridge, args: argparse.Namespace) -> int:
+    try:
+        data = bridge.batch_diagnose_outcars(
+            outcar_paths=args.outcar_paths,
+            energy_tolerance_ev=args.energy_tol,
+            force_tolerance_ev_per_a=args.force_tol,
             fail_fast=args.fail_fast,
         )
     except Exception as exc:

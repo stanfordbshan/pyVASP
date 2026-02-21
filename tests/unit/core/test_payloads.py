@@ -22,6 +22,9 @@ from pyvasp.core.models import (
     StressTensor,
 )
 from pyvasp.core.payloads import (
+    BatchDiagnosticsRequestPayload,
+    BatchDiagnosticsResponsePayload,
+    BatchDiagnosticsRowPayload,
     BatchSummaryResponsePayload,
     BatchSummaryRowPayload,
     DiagnosticsResponsePayload,
@@ -30,6 +33,7 @@ from pyvasp.core.payloads import (
     GenerateRelaxInputResponsePayload,
     IonicSeriesResponsePayload,
     SummaryResponsePayload,
+    validate_batch_diagnostics_request,
     validate_batch_summary_request,
     validate_diagnostics_request,
     validate_electronic_metadata_request,
@@ -71,6 +75,25 @@ def test_validate_batch_summary_request_success() -> None:
 def test_validate_batch_summary_request_requires_nonempty_list() -> None:
     with pytest.raises(ValidationError):
         validate_batch_summary_request({"outcar_paths": []})
+
+
+def test_validate_batch_diagnostics_request_success() -> None:
+    payload = validate_batch_diagnostics_request(
+        {
+            "outcar_paths": [str(FIXTURE)],
+            "energy_tolerance_ev": 1e-4,
+            "force_tolerance_ev_per_a": 0.02,
+            "fail_fast": True,
+        }
+    )
+    assert isinstance(payload, BatchDiagnosticsRequestPayload)
+    assert payload.outcar_paths == (str(FIXTURE),)
+    assert payload.fail_fast is True
+
+
+def test_validate_batch_diagnostics_request_requires_nonempty_list() -> None:
+    with pytest.raises(ValidationError):
+        validate_batch_diagnostics_request({"outcar_paths": []})
 
 
 def test_validate_diagnostics_request_rejects_non_positive_tolerances() -> None:
@@ -362,4 +385,45 @@ def test_batch_summary_response_payload_mapping() -> None:
     assert mapped["success_count"] == 1
     assert mapped["error_count"] == 1
     assert mapped["rows"][0]["warnings"] == ["ok"]
+    assert mapped["rows"][1]["error"]["code"] == "FILE_NOT_FOUND"
+
+
+def test_batch_diagnostics_response_payload_mapping() -> None:
+    payload = BatchDiagnosticsResponsePayload(
+        total_count=2,
+        success_count=1,
+        error_count=1,
+        rows=(
+            BatchDiagnosticsRowPayload(
+                outcar_path=str(FIXTURE),
+                status="ok",
+                final_total_energy_ev=-10.5,
+                max_force_ev_per_a=0.005,
+                external_pressure_kb=-1.23,
+                is_energy_converged=True,
+                is_force_converged=True,
+                is_converged=True,
+                warnings=("ok",),
+                error=None,
+            ),
+            BatchDiagnosticsRowPayload(
+                outcar_path="/missing/OUTCAR",
+                status="error",
+                final_total_energy_ev=None,
+                max_force_ev_per_a=None,
+                external_pressure_kb=None,
+                is_energy_converged=None,
+                is_force_converged=None,
+                is_converged=None,
+                warnings=(),
+                error={"code": "FILE_NOT_FOUND", "message": "missing"},
+            ),
+        ),
+    )
+
+    mapped = payload.to_mapping()
+    assert mapped["total_count"] == 2
+    assert mapped["success_count"] == 1
+    assert mapped["error_count"] == 1
+    assert mapped["rows"][0]["is_converged"] is True
     assert mapped["rows"][1]["error"]["code"] == "FILE_NOT_FOUND"

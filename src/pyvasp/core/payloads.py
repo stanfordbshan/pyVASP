@@ -80,6 +80,39 @@ class BatchSummaryRequestPayload:
 
 
 @dataclass(frozen=True)
+class BatchDiagnosticsRequestPayload:
+    """Canonical request payload for batch OUTCAR diagnostics."""
+
+    outcar_paths: tuple[str, ...]
+    energy_tolerance_ev: float = 1e-4
+    force_tolerance_ev_per_a: float = 0.02
+    fail_fast: bool = False
+
+    @classmethod
+    def from_mapping(cls, raw: dict[str, Any]) -> "BatchDiagnosticsRequestPayload":
+        paths_raw = raw.get("outcar_paths")
+        if not isinstance(paths_raw, (list, tuple)) or not paths_raw:
+            raise ValidationError("outcar_paths must be a non-empty list of paths")
+
+        normalized: list[str] = []
+        for idx, value in enumerate(paths_raw, start=1):
+            token = str(value).strip()
+            if not token:
+                raise ValidationError(f"outcar_paths[{idx}] must be a non-empty path string")
+            normalized.append(token)
+
+        return cls(
+            outcar_paths=tuple(normalized),
+            energy_tolerance_ev=_coerce_positive_float(raw.get("energy_tolerance_ev", 1e-4), "energy_tolerance_ev"),
+            force_tolerance_ev_per_a=_coerce_positive_float(
+                raw.get("force_tolerance_ev_per_a", 0.02),
+                "force_tolerance_ev_per_a",
+            ),
+            fail_fast=bool(raw.get("fail_fast", False)),
+        )
+
+
+@dataclass(frozen=True)
 class DiagnosticsRequestPayload:
     """Canonical request payload for OUTCAR diagnostics."""
 
@@ -440,6 +473,45 @@ class BatchSummaryResponsePayload:
 
 
 @dataclass(frozen=True)
+class BatchDiagnosticsRowPayload:
+    """Per-OUTCAR batch diagnostics row for adapters."""
+
+    outcar_path: str
+    status: str
+    final_total_energy_ev: float | None
+    max_force_ev_per_a: float | None
+    external_pressure_kb: float | None
+    is_energy_converged: bool | None
+    is_force_converged: bool | None
+    is_converged: bool | None
+    warnings: tuple[str, ...]
+    error: dict[str, Any] | None = None
+
+    def to_mapping(self) -> dict[str, Any]:
+        mapped = asdict(self)
+        mapped["warnings"] = list(self.warnings)
+        return mapped
+
+
+@dataclass(frozen=True)
+class BatchDiagnosticsResponsePayload:
+    """Canonical batch diagnostics response consumed by adapters."""
+
+    total_count: int
+    success_count: int
+    error_count: int
+    rows: tuple[BatchDiagnosticsRowPayload, ...]
+
+    def to_mapping(self) -> dict[str, Any]:
+        return {
+            "total_count": self.total_count,
+            "success_count": self.success_count,
+            "error_count": self.error_count,
+            "rows": [row.to_mapping() for row in self.rows],
+        }
+
+
+@dataclass(frozen=True)
 class DiagnosticsResponsePayload:
     """Canonical diagnostics response consumed by API/GUI/CLI adapters."""
 
@@ -658,6 +730,17 @@ def validate_batch_summary_request(raw: dict[str, Any]) -> BatchSummaryRequestPa
 
     try:
         return BatchSummaryRequestPayload.from_mapping(raw)
+    except ValidationError:
+        raise
+    except Exception as exc:  # pragma: no cover - defensive normalization
+        raise ValidationError(str(exc)) from exc
+
+
+def validate_batch_diagnostics_request(raw: dict[str, Any]) -> BatchDiagnosticsRequestPayload:
+    """Map arbitrary adapter payload into canonical batch-diagnostics request object."""
+
+    try:
+        return BatchDiagnosticsRequestPayload.from_mapping(raw)
     except ValidationError:
         raise
     except Exception as exc:  # pragma: no cover - defensive normalization

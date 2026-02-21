@@ -13,6 +13,9 @@ from pyvasp.core.analysis import build_convergence_profile, build_convergence_re
 from pyvasp.core.errors import ParseError, ValidationError, normalize_error
 from pyvasp.core.models import OutcarDiagnostics
 from pyvasp.core.payloads import (
+    BatchDiagnosticsRequestPayload,
+    BatchDiagnosticsResponsePayload,
+    BatchDiagnosticsRowPayload,
     BatchSummaryRequestPayload,
     BatchSummaryResponsePayload,
     BatchSummaryRowPayload,
@@ -85,6 +88,80 @@ class BatchSummarizeOutcarUseCase:
 
         return AppResult.success(
             BatchSummaryResponsePayload(
+                total_count=len(rows),
+                success_count=success_count,
+                error_count=error_count,
+                rows=tuple(rows),
+            )
+        )
+
+
+class BatchDiagnoseOutcarUseCase:
+    """Run diagnostics on multiple OUTCAR files with per-row success/failure output."""
+
+    def __init__(self, reader: OutcarObservablesReader) -> None:
+        self._reader = reader
+
+    def execute(self, request: BatchDiagnosticsRequestPayload) -> AppResult[BatchDiagnosticsResponsePayload]:
+        """Run batch diagnostics extraction and return a typed aggregate result."""
+
+        rows: list[BatchDiagnosticsRowPayload] = []
+        success_count = 0
+        error_count = 0
+
+        for outcar_path in request.outcar_paths:
+            try:
+                resolved = validate_outcar_path(outcar_path)
+                observables = self._reader.parse_observables_file(resolved)
+                convergence = build_convergence_report(
+                    observables.summary,
+                    energy_tolerance_ev=request.energy_tolerance_ev,
+                    force_tolerance_ev_per_a=request.force_tolerance_ev_per_a,
+                )
+
+                warnings = list(observables.summary.warnings)
+                warnings.extend(observables.warnings)
+                if convergence.is_energy_converged is None:
+                    warnings.append("Energy convergence could not be evaluated (insufficient TOTEN history)")
+                if convergence.is_force_converged is None:
+                    warnings.append("Force convergence could not be evaluated (missing force table)")
+
+                rows.append(
+                    BatchDiagnosticsRowPayload(
+                        outcar_path=observables.source_path,
+                        status="ok",
+                        final_total_energy_ev=observables.summary.final_total_energy_ev,
+                        max_force_ev_per_a=observables.summary.max_force_ev_per_a,
+                        external_pressure_kb=observables.external_pressure_kb,
+                        is_energy_converged=convergence.is_energy_converged,
+                        is_force_converged=convergence.is_force_converged,
+                        is_converged=convergence.is_converged,
+                        warnings=tuple(dict.fromkeys(warnings)),
+                        error=None,
+                    )
+                )
+                success_count += 1
+            except Exception as exc:
+                rows.append(
+                    BatchDiagnosticsRowPayload(
+                        outcar_path=outcar_path,
+                        status="error",
+                        final_total_energy_ev=None,
+                        max_force_ev_per_a=None,
+                        external_pressure_kb=None,
+                        is_energy_converged=None,
+                        is_force_converged=None,
+                        is_converged=None,
+                        warnings=(),
+                        error=normalize_error(exc).to_mapping(),
+                    )
+                )
+                error_count += 1
+                if request.fail_fast:
+                    break
+
+        return AppResult.success(
+            BatchDiagnosticsResponsePayload(
                 total_count=len(rows),
                 success_count=success_count,
                 error_count=error_count,

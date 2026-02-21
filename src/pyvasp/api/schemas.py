@@ -21,6 +21,15 @@ class BatchSummaryRequestSchema(BaseModel):
     fail_fast: bool = Field(default=False, description="Stop processing after the first failed item")
 
 
+class BatchDiagnosticsRequestSchema(BaseModel):
+    """Request payload for batch OUTCAR diagnostics endpoint."""
+
+    outcar_paths: list[str] = Field(..., description="List of OUTCAR file paths")
+    energy_tolerance_ev: float = Field(default=1e-4, description="Convergence threshold for |ΔE| in eV")
+    force_tolerance_ev_per_a: float = Field(default=0.02, description="Convergence threshold for max force")
+    fail_fast: bool = Field(default=False, description="Stop processing after the first failed item")
+
+
 class DiagnosticsRequestSchema(BaseModel):
     """Request payload for OUTCAR diagnostics endpoint."""
 
@@ -225,6 +234,30 @@ class BatchSummaryResponseSchema(BaseModel):
     success_count: int
     error_count: int
     rows: list[BatchSummaryRowSchema]
+
+
+class BatchDiagnosticsRowSchema(BaseModel):
+    """Per-OUTCAR diagnostics row for batch endpoint responses."""
+
+    outcar_path: str
+    status: str
+    final_total_energy_ev: float | None
+    max_force_ev_per_a: float | None
+    external_pressure_kb: float | None
+    is_energy_converged: bool | None
+    is_force_converged: bool | None
+    is_converged: bool | None
+    warnings: list[str]
+    error: dict[str, Any] | None
+
+
+class BatchDiagnosticsResponseSchema(BaseModel):
+    """Response schema for batch OUTCAR diagnostics endpoint."""
+
+    total_count: int
+    success_count: int
+    error_count: int
+    rows: list[BatchDiagnosticsRowSchema]
 
 
 class DiagnosticsResponseSchema(BaseModel):

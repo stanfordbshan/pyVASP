@@ -6,6 +6,7 @@ from fastapi import FastAPI
 
 from pyvasp.api.routes import create_router
 from pyvasp.application.use_cases import (
+    BatchDiagnoseOutcarUseCase,
     BatchSummarizeOutcarUseCase,
     BuildConvergenceProfileUseCase,
     BuildIonicSeriesUseCase,
@@ -26,6 +27,7 @@ def create_app() -> FastAPI:
     outcar_parser = OutcarParser()
     summary_use_case = SummarizeOutcarUseCase(reader=outcar_parser)
     batch_summary_use_case = BatchSummarizeOutcarUseCase(reader=outcar_parser)
+    batch_diagnostics_use_case = BatchDiagnoseOutcarUseCase(reader=outcar_parser)
     diagnostics_use_case = DiagnoseOutcarUseCase(reader=outcar_parser)
     profile_use_case = BuildConvergenceProfileUseCase(reader=outcar_parser)
     ionic_series_use_case = BuildIonicSeriesUseCase(reader=outcar_parser)
@@ -45,6 +47,7 @@ def create_app() -> FastAPI:
         create_router(
             summary_use_case,
             batch_summary_use_case,
+            batch_diagnostics_use_case,
             diagnostics_use_case,
             profile_use_case,
             ionic_series_use_case,

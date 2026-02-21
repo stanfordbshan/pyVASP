@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from pyvasp.application.use_cases import (
+    BatchDiagnoseOutcarUseCase,
     BatchSummarizeOutcarUseCase,
     BuildConvergenceProfileUseCase,
     BuildIonicSeriesUseCase,
@@ -29,6 +30,7 @@ from pyvasp.core.models import (
     StressTensor,
 )
 from pyvasp.core.payloads import (
+    BatchDiagnosticsRequestPayload,
     BatchSummaryRequestPayload,
     ConvergenceProfileRequestPayload,
     DiagnosticsRequestPayload,
@@ -238,6 +240,45 @@ def test_batch_summary_use_case_fail_fast_stops_early() -> None:
     use_case = BatchSummarizeOutcarUseCase(reader=WorkingSummaryReader())
     request = BatchSummaryRequestPayload(
         outcar_paths=("/missing/OUTCAR", str(FIXTURE)),
+        fail_fast=True,
+    )
+
+    result = use_case.execute(request)
+    assert result.ok is True
+    assert result.value is not None
+    assert result.value.total_count == 1
+    assert result.value.success_count == 0
+    assert result.value.error_count == 1
+
+
+def test_batch_diagnostics_use_case_mixed_results() -> None:
+    use_case = BatchDiagnoseOutcarUseCase(reader=WorkingObservablesReader())
+    request = BatchDiagnosticsRequestPayload(
+        outcar_paths=(str(FIXTURE), "/missing/OUTCAR"),
+        energy_tolerance_ev=1e-4,
+        force_tolerance_ev_per_a=0.02,
+        fail_fast=False,
+    )
+
+    result = use_case.execute(request)
+    assert result.ok is True
+    assert result.value is not None
+    assert result.value.total_count == 2
+    assert result.value.success_count == 1
+    assert result.value.error_count == 1
+    assert result.value.rows[0].status == "ok"
+    assert result.value.rows[0].is_converged is True
+    assert result.value.rows[1].status == "error"
+    assert result.value.rows[1].error is not None
+    assert result.value.rows[1].error["code"] == "FILE_NOT_FOUND"
+
+
+def test_batch_diagnostics_use_case_fail_fast_stops_early() -> None:
+    use_case = BatchDiagnoseOutcarUseCase(reader=WorkingObservablesReader())
+    request = BatchDiagnosticsRequestPayload(
+        outcar_paths=("/missing/OUTCAR", str(FIXTURE)),
+        energy_tolerance_ev=1e-4,
+        force_tolerance_ev_per_a=0.02,
         fail_fast=True,
     )
 

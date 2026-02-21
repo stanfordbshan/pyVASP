@@ -92,6 +92,42 @@ def test_api_batch_summary_bad_request() -> None:
     assert "outcar_paths" in detail["message"]
 
 
+def test_api_batch_diagnostics_mixed_results() -> None:
+    client = TestClient(create_app())
+    response = client.post(
+        "/v1/outcar/batch-diagnostics",
+        json={
+            "outcar_paths": [str(FIXTURE_PHASE2), "/missing/OUTCAR"],
+            "energy_tolerance_ev": 1e-4,
+            "force_tolerance_ev_per_a": 0.02,
+            "fail_fast": False,
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total_count"] == 2
+    assert body["success_count"] == 1
+    assert body["error_count"] == 1
+    assert body["rows"][0]["status"] == "ok"
+    assert body["rows"][0]["is_converged"] is True
+    assert body["rows"][1]["status"] == "error"
+    assert body["rows"][1]["error"]["code"] == "FILE_NOT_FOUND"
+
+
+def test_api_batch_diagnostics_bad_request() -> None:
+    client = TestClient(create_app())
+    response = client.post(
+        "/v1/outcar/batch-diagnostics",
+        json={"outcar_paths": []},
+    )
+
+    assert response.status_code == 400
+    detail = response.json()["detail"]
+    assert detail["code"] == "VALIDATION_ERROR"
+    assert "outcar_paths" in detail["message"]
+
+
 def test_api_diagnostics_success() -> None:
     client = TestClient(create_app())
     response = client.post(

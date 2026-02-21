@@ -43,6 +43,19 @@ form.addEventListener("submit", async (event) => {
       outcar_paths: outcarPaths,
       fail_fast: document.getElementById("batch_fail_fast").checked,
     };
+  } else if (operation === "batch_diagnostics") {
+    endpoint = "/ui/batch-diagnostics";
+    const raw = document.getElementById("batch_outcar_paths").value;
+    const outcarPaths = raw
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+    payload = {
+      outcar_paths: outcarPaths,
+      energy_tolerance_ev: Number(document.getElementById("energy_tol").value),
+      force_tolerance_ev_per_a: Number(document.getElementById("force_tol").value),
+      fail_fast: document.getElementById("batch_fail_fast").checked,
+    };
   } else if (operation === "ionic_series") {
     endpoint = "/ui/ionic-series";
     payload = { outcar_path: outcarPath };

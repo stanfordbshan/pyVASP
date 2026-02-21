@@ -58,6 +58,16 @@ def test_bridge_direct_mode_profile_electronic_and_input_generation() -> None:
     assert batch["error_count"] == 1
     assert batch["rows"][1]["error"]["code"] == "FILE_NOT_FOUND"
 
+    batch_diag = bridge.batch_diagnose_outcars(
+        outcar_paths=[str(FIXTURE_PHASE2), "/missing/OUTCAR"],
+        energy_tolerance_ev=1e-4,
+        force_tolerance_ev_per_a=0.02,
+        fail_fast=False,
+    )
+    assert batch_diag["total_count"] == 2
+    assert batch_diag["success_count"] == 1
+    assert batch_diag["rows"][0]["is_converged"] is True
+
     electronic = bridge.parse_electronic_metadata(
         eigenval_path=str(EIGENVAL_FIXTURE),
         doscar_path=str(DOSCAR_FIXTURE),
@@ -153,6 +163,19 @@ def test_gui_host_ui_profile_electronic_and_input_endpoints() -> None:
     assert batch.status_code == 200
     assert batch.json()["total_count"] == 2
     assert batch.json()["error_count"] == 1
+
+    batch_diag = client.post(
+        "/ui/batch-diagnostics",
+        json={
+            "outcar_paths": [str(FIXTURE_PHASE2), "/missing/OUTCAR"],
+            "energy_tolerance_ev": 1e-4,
+            "force_tolerance_ev_per_a": 0.02,
+            "fail_fast": False,
+        },
+    )
+    assert batch_diag.status_code == 200
+    assert batch_diag.json()["total_count"] == 2
+    assert batch_diag.json()["success_count"] == 1
 
     electronic = client.post(
         "/ui/electronic-metadata",
