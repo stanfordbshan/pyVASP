@@ -5,21 +5,23 @@ from __future__ import annotations
 from fastapi import FastAPI
 
 from pyvasp.api.routes import create_router
-from pyvasp.application.use_cases import SummarizeOutcarUseCase
+from pyvasp.application.use_cases import DiagnoseOutcarUseCase, SummarizeOutcarUseCase
 from pyvasp.outcar.parser import OutcarParser
 
 
 def create_app() -> FastAPI:
     """Create configured FastAPI application instance."""
 
-    use_case = SummarizeOutcarUseCase(reader=OutcarParser())
+    parser = OutcarParser()
+    summary_use_case = SummarizeOutcarUseCase(reader=parser)
+    diagnostics_use_case = DiagnoseOutcarUseCase(reader=parser)
 
     app = FastAPI(
         title="pyVASP API",
         version="0.1.0",
         description="Layered API for VASP OUTCAR post-processing and visualization backends.",
     )
-    app.include_router(create_router(use_case))
+    app.include_router(create_router(summary_use_case, diagnostics_use_case))
 
     return app
 

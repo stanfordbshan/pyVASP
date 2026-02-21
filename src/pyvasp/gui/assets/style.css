@@ -53,6 +53,15 @@ input[type="text"] {
   border-radius: 8px;
 }
 
+input[type="number"],
+select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+}
+
 .checkbox {
   display: flex;
   gap: 8px;
@@ -83,6 +92,12 @@ pre {
   overflow: auto;
 }
 
+.grid-two {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 @media (max-width: 640px) {
   body {
     padding: 12px;
@@ -90,5 +105,9 @@ pre {
 
   .panel {
     padding: 16px;
+  }
+
+  .grid-two {
+    grid-template-columns: 1fr;
   }
 }

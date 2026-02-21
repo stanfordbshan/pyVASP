@@ -9,6 +9,7 @@ from pyvasp.outcar.parser import OutcarParser
 
 
 FIXTURE = Path(__file__).resolve().parents[2] / "fixtures" / "OUTCAR.sample"
+FIXTURE_PHASE2 = Path(__file__).resolve().parents[2] / "fixtures" / "OUTCAR.phase2.sample"
 
 
 def test_parse_outcar_summary_fields() -> None:
@@ -24,6 +25,20 @@ def test_parse_outcar_summary_fields() -> None:
     assert summary.max_force_ev_per_a == pytest.approx(0.005)
     assert len(summary.energy_history) == 2
     assert summary.warnings == ()
+
+
+def test_parse_outcar_observables_fields() -> None:
+    parser = OutcarParser()
+    observables = parser.parse_observables_file(FIXTURE_PHASE2)
+
+    assert observables.external_pressure_kb == pytest.approx(-1.23)
+    assert observables.stress_tensor_kb is not None
+    assert observables.stress_tensor_kb.xx_kb == pytest.approx(9.0)
+    assert observables.magnetization is not None
+    assert observables.magnetization.axis == "z"
+    assert observables.magnetization.total_moment_mu_b == pytest.approx(0.3)
+    assert observables.magnetization.site_moments_mu_b == pytest.approx((1.1, -0.8))
+    assert observables.warnings == ()
 
 
 def test_parse_outcar_rejects_invalid_text() -> None:

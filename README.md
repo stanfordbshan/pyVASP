@@ -2,15 +2,14 @@
 
 pyVASP is a layered Python toolkit for VASP input generation, post-processing, and visualization workflows.
 
-Phase 1 implements a strict backend-first architecture and the first common OUTCAR post-processing feature set (inspired by frequently used VASPKIT-style summaries):
-- extract `TOTEN` energy history and final energy
-- extract final `E-fermi`
-- count ionic steps and electronic iterations
-- estimate final-step max atomic force from `TOTAL-FORCE` tables
+Phase 1-2 implemented a strict backend-first architecture and common OUTCAR post-processing features inspired by practical VASPKIT workflows:
+- energy/iteration summary: `TOTEN`, `E-fermi`, ionic steps, electronic iterations, max force
+- diagnostics: external pressure, stress tensor (`in kB`), final `magnetization (z)` table
+- convergence assessment using configurable energy/force tolerances
 
 ## Architecture (strict layering)
 
-- `src/pyvasp/core`: domain models, validation, result wrappers, shared payload mapping
+- `src/pyvasp/core`: domain models, validation, result wrappers, shared payload mapping, convergence logic
 - `src/pyvasp/application`: transport-agnostic use-cases and ports
 - `src/pyvasp/outcar`: OUTCAR method module (parsing algorithms)
 - `src/pyvasp/api`: HTTP adapter only (FastAPI schemas/routes/bootstrap)
@@ -38,30 +37,41 @@ python -m pip install -e .
 python -m pip install -e .[dev]
 ```
 
-## Run Modes
+## CLI
 
-### 1. Direct mode (in-process, no HTTP)
-
+Summary:
 ```bash
-pyvasp-cli summary /absolute/path/to/OUTCAR --mode direct
+pyvasp-cli summary /absolute/path/to/OUTCAR --mode direct --include-history
 ```
 
-### 2. API mode (remote HTTP backend)
+Diagnostics:
+```bash
+pyvasp-cli diagnostics /absolute/path/to/OUTCAR --mode direct --energy-tol 1e-4 --force-tol 0.02
+```
 
-Start backend API:
+Modes:
+- `direct`: in-process backend calls (no HTTP)
+- `api`: remote HTTP backend
+- `auto`: direct first, fallback to API
+
+## API
+
+Start API backend:
 ```bash
 pyvasp-api
 ```
 
-Then use CLI bridge against API:
-```bash
-pyvasp-cli summary /absolute/path/to/OUTCAR --mode api --api-base-url http://127.0.0.1:8000
-```
+Endpoints:
+- `POST /v1/outcar/summary`
+- `POST /v1/outcar/diagnostics`
 
-### 3. Auto mode (direct first, fallback to API)
-
-```bash
-pyvasp-cli summary /absolute/path/to/OUTCAR --mode auto --api-base-url http://127.0.0.1:8000
+Diagnostics request example:
+```json
+{
+  "outcar_path": "/absolute/path/to/OUTCAR",
+  "energy_tolerance_ev": 0.0001,
+  "force_tolerance_ev_per_a": 0.02
+}
 ```
 
 ## GUI Host
@@ -78,27 +88,15 @@ Runtime env vars:
 - `PYVASP_UI_MODE=direct|api|auto`
 - `PYVASP_API_BASE_URL=http://127.0.0.1:8000`
 
-## API Endpoint
-
-`POST /v1/outcar/summary`
-
-Request:
-```json
-{
-  "outcar_path": "/absolute/path/to/OUTCAR",
-  "include_history": true
-}
-```
-
 ## Tests
 
 ```bash
 pytest
 ```
 
-Test coverage includes:
-- unit tests for `core`, `application`, and `outcar` parsing
-- integration tests for API, GUI bridge modes, and CLI contract path
+Coverage includes:
+- unit tests for `core`, `application`, and `outcar`
+- integration tests for API, GUI bridge/host, and CLI contract paths
 
 ## Documentation
 

@@ -8,19 +8,36 @@
   </head>
   <body>
     <main class="panel">
-      <h1>pyVASP OUTCAR Summary</h1>
+      <h1>pyVASP OUTCAR Tools</h1>
       <p id="mode-label" class="muted"></p>
 
-      <form id="summary-form">
+      <form id="run-form">
+        <label for="operation">Operation</label>
+        <select id="operation" name="operation">
+          <option value="summary">Summary</option>
+          <option value="diagnostics">Diagnostics</option>
+        </select>
+
         <label for="outcar_path">OUTCAR Path</label>
         <input id="outcar_path" name="outcar_path" type="text" placeholder="/path/to/OUTCAR" required />
 
         <label class="checkbox">
           <input id="include_history" name="include_history" type="checkbox" />
-          Include energy history
+          Include energy history (summary mode)
         </label>
 
-        <button type="submit">Generate Summary</button>
+        <div class="grid-two">
+          <div>
+            <label for="energy_tol">Energy tolerance (eV)</label>
+            <input id="energy_tol" name="energy_tol" type="number" step="any" value="0.0001" />
+          </div>
+          <div>
+            <label for="force_tol">Force tolerance (eV/Ang)</label>
+            <input id="force_tol" name="force_tol" type="number" step="any" value="0.02" />
+          </div>
+        </div>
+
+        <button type="submit">Run</button>
       </form>
 
       <section>

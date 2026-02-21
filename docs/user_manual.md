@@ -1,17 +1,29 @@
 # pyVASP User Manual
 
-## 1. What pyVASP does (Phase 1)
+## 1. What pyVASP does (Phase 2)
 
-Phase 1 provides OUTCAR post-processing summary capabilities:
-- final total energy (`TOTEN`)
-- optional energy history
-- final Fermi energy (`E-fermi`)
-- ionic step count
-- electronic iteration count
-- final max force estimate from `TOTAL-FORCE`
+Current capabilities:
+- OUTCAR summary:
+  - final total energy (`TOTEN`)
+  - optional energy history
+  - final Fermi energy (`E-fermi`)
+  - ionic step and electronic iteration counts
+  - final max force estimate from `TOTAL-FORCE`
+- OUTCAR diagnostics:
+  - external pressure (`kB`)
+  - stress tensor (`in kB` line)
+  - final `magnetization (z)` table
+  - convergence assessment (`|ΔE|` and max force thresholds)
 
 ## 2. Installation
 
+Conda (recommended):
+```bash
+conda env create -f environment.yml
+conda activate pyvasp
+```
+
+Pip (alternative):
 ```bash
 python -m pip install -e .
 python -m pip install -e .[dev]
@@ -19,29 +31,22 @@ python -m pip install -e .[dev]
 
 ## 3. CLI Usage
 
-### Direct mode
+### Summary
 
 ```bash
-pyvasp-cli summary /absolute/path/to/OUTCAR --mode direct
+pyvasp-cli summary /absolute/path/to/OUTCAR --mode direct --include-history
 ```
 
-### API mode
-
-Start API backend:
-```bash
-pyvasp-api
-```
-
-Run CLI through HTTP:
-```bash
-pyvasp-cli summary /absolute/path/to/OUTCAR --mode api --api-base-url http://127.0.0.1:8000
-```
-
-### Auto mode
+### Diagnostics
 
 ```bash
-pyvasp-cli summary /absolute/path/to/OUTCAR --mode auto --api-base-url http://127.0.0.1:8000
+pyvasp-cli diagnostics /absolute/path/to/OUTCAR --mode direct --energy-tol 1e-4 --force-tol 0.02
 ```
+
+Modes:
+- `direct`: in-process backend
+- `api`: call HTTP backend
+- `auto`: try direct, fallback to API
 
 ## 4. API Usage
 
@@ -50,11 +55,18 @@ Start API:
 pyvasp-api
 ```
 
-Request:
+Summary request:
 ```bash
 curl -X POST http://127.0.0.1:8000/v1/outcar/summary \
   -H "Content-Type: application/json" \
   -d '{"outcar_path":"/absolute/path/to/OUTCAR","include_history":true}'
+```
+
+Diagnostics request:
+```bash
+curl -X POST http://127.0.0.1:8000/v1/outcar/diagnostics \
+  -H "Content-Type: application/json" \
+  -d '{"outcar_path":"/absolute/path/to/OUTCAR","energy_tolerance_ev":0.0001,"force_tolerance_ev_per_a":0.02}'
 ```
 
 ## 5. GUI Host Usage
@@ -73,6 +85,6 @@ Optional runtime environment:
 
 ## 6. Troubleshooting
 
-- `OUTCAR file does not exist`: pass an absolute path to an existing file.
-- API mode connection errors: ensure `pyvasp-api` is running and `api_base_url` is correct.
-- If no `TOTEN` data appears, verify the OUTCAR contains completed ionic/electronic steps.
+- `OUTCAR file does not exist`: use an absolute path to an existing file.
+- API mode connection errors: ensure backend is running and API URL is correct.
+- Missing diagnostics fields: some OUTCARs omit stress/magnetization blocks, reported in `warnings`.

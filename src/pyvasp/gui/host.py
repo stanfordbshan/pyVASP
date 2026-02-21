@@ -20,6 +20,14 @@ class UiSummaryRequest(BaseModel):
     include_history: bool = Field(default=False)
 
 
+class UiDiagnosticsRequest(BaseModel):
+    """GUI diagnostics request schema."""
+
+    outcar_path: str = Field(..., description="Path to OUTCAR")
+    energy_tolerance_ev: float = Field(default=1e-4)
+    force_tolerance_ev_per_a: float = Field(default=0.02)
+
+
 class UiConfigResponse(BaseModel):
     """Exposes GUI runtime mode to static frontend."""
 
@@ -64,6 +72,17 @@ def create_gui_app(
             return app.state.bridge.summarize_outcar(
                 outcar_path=request.outcar_path,
                 include_history=request.include_history,
+            )
+        except Exception as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.post("/ui/diagnostics")
+    def ui_diagnostics(request: UiDiagnosticsRequest) -> dict:
+        try:
+            return app.state.bridge.diagnose_outcar(
+                outcar_path=request.outcar_path,
+                energy_tolerance_ev=request.energy_tolerance_ev,
+                force_tolerance_ev_per_a=request.force_tolerance_ev_per_a,
             )
         except Exception as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
