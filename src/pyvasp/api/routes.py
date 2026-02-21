@@ -16,11 +16,14 @@ from pyvasp.api.schemas import (
     ErrorSchema,
     GenerateRelaxInputRequestSchema,
     GenerateRelaxInputResponseSchema,
+    IonicSeriesRequestSchema,
+    IonicSeriesResponseSchema,
     SummaryRequestSchema,
     SummaryResponseSchema,
 )
 from pyvasp.application.use_cases import (
     BuildConvergenceProfileUseCase,
+    BuildIonicSeriesUseCase,
     DiagnoseOutcarUseCase,
     GenerateRelaxInputUseCase,
     ParseElectronicMetadataUseCase,
@@ -32,6 +35,7 @@ from pyvasp.core.payloads import (
     validate_diagnostics_request,
     validate_electronic_metadata_request,
     validate_generate_relax_input_request,
+    validate_ionic_series_request,
     validate_summary_request,
 )
 
@@ -40,6 +44,7 @@ def create_router(
     summary_use_case: SummarizeOutcarUseCase,
     diagnostics_use_case: DiagnoseOutcarUseCase,
     profile_use_case: BuildConvergenceProfileUseCase,
+    ionic_series_use_case: BuildIonicSeriesUseCase,
     electronic_use_case: ParseElectronicMetadataUseCase,
     relax_input_use_case: GenerateRelaxInputUseCase,
 ) -> APIRouter:
@@ -92,6 +97,22 @@ def create_router(
         if not result.ok or result.value is None:
             _raise_http_from_error(result.error or AppError(ErrorCode.INTERNAL_ERROR, "Unknown application error"))
         return ConvergenceProfileResponseSchema(**result.value.to_mapping())
+
+    @router.post(
+        "/v1/outcar/ionic-series",
+        response_model=IonicSeriesResponseSchema,
+        responses=error_responses,
+    )
+    def ionic_series(request: IonicSeriesRequestSchema) -> IonicSeriesResponseSchema:
+        try:
+            payload = validate_ionic_series_request(request.model_dump())
+        except Exception as exc:
+            _raise_http_from_error(normalize_error(exc))
+
+        result = ionic_series_use_case.execute(payload)
+        if not result.ok or result.value is None:
+            _raise_http_from_error(result.error or AppError(ErrorCode.INTERNAL_ERROR, "Unknown application error"))
+        return IonicSeriesResponseSchema(**result.value.to_mapping())
 
     @router.post(
         "/v1/electronic/metadata",

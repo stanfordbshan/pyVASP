@@ -1,6 +1,6 @@
 # pyVASP Developer Manual
 
-## 1. File Tree (Phase 4.1 + Error Hardening)
+## 1. File Tree (Phase 4.2 + Visualization Series)
 
 ```text
 pyVASP/
@@ -93,6 +93,7 @@ pyVASP/
   - `SummarizeOutcarUseCase`
   - `DiagnoseOutcarUseCase`
   - `BuildConvergenceProfileUseCase`
+  - `BuildIonicSeriesUseCase`
   - `ParseElectronicMetadataUseCase`
   - `GenerateRelaxInputUseCase`
 - Use-cases return `AppResult` with structured `AppError` failures; no adapter-specific error format.
@@ -123,6 +124,7 @@ All adapter entry points call core validators first:
 - summary
 - diagnostics
 - convergence profile
+- ionic series
 - electronic metadata
 - relaxation input generation
 

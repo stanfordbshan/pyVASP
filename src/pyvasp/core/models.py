@@ -106,6 +106,28 @@ class ConvergenceProfile:
 
 
 @dataclass(frozen=True)
+class OutcarIonicSeriesPoint:
+    """Per-step OUTCAR series point for multi-metric visualization."""
+
+    ionic_step: int
+    total_energy_ev: float | None
+    delta_energy_ev: float | None
+    relative_energy_ev: float | None
+    max_force_ev_per_a: float | None
+    external_pressure_kb: float | None
+    fermi_energy_ev: float | None
+
+
+@dataclass(frozen=True)
+class OutcarIonicSeries:
+    """Chart-ready ionic-step series composed from OUTCAR step histories."""
+
+    source_path: str
+    points: tuple[OutcarIonicSeriesPoint, ...] = field(default_factory=tuple)
+    warnings: tuple[str, ...] = field(default_factory=tuple)
+
+
+@dataclass(frozen=True)
 class StructureAtom:
     """Atomic site in fractional coordinates."""
 

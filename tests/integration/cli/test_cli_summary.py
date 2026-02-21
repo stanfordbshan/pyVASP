@@ -41,6 +41,16 @@ def test_cli_convergence_profile_direct_mode(capsys) -> None:
     assert len(payload["points"]) == 2
 
 
+def test_cli_ionic_series_direct_mode(capsys) -> None:
+    exit_code = main(["ionic-series", str(FIXTURE_PHASE2), "--mode", "direct"])
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    payload = json.loads(captured.out)
+    assert payload["n_steps"] == 2
+    assert payload["points"][1]["external_pressure_kb"] == -1.23
+
+
 def test_cli_electronic_metadata_direct_mode(capsys) -> None:
     exit_code = main(
         [

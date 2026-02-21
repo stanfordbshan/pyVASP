@@ -38,6 +38,10 @@ def test_bridge_direct_mode_profile_electronic_and_input_generation() -> None:
     profile = bridge.build_convergence_profile(outcar_path=str(FIXTURE))
     assert len(profile["points"]) == 2
 
+    ionic_series = bridge.build_ionic_series(outcar_path=str(FIXTURE_PHASE2))
+    assert ionic_series["n_steps"] == 2
+    assert ionic_series["points"][1]["external_pressure_kb"] == -1.23
+
     electronic = bridge.parse_electronic_metadata(
         eigenval_path=str(EIGENVAL_FIXTURE),
         doscar_path=str(DOSCAR_FIXTURE),
@@ -114,6 +118,10 @@ def test_gui_host_ui_profile_electronic_and_input_endpoints() -> None:
     profile = client.post("/ui/convergence-profile", json={"outcar_path": str(FIXTURE)})
     assert profile.status_code == 200
     assert len(profile.json()["points"]) == 2
+
+    ionic_series = client.post("/ui/ionic-series", json={"outcar_path": str(FIXTURE_PHASE2)})
+    assert ionic_series.status_code == 200
+    assert ionic_series.json()["n_steps"] == 2
 
     electronic = client.post(
         "/ui/electronic-metadata",

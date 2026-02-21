@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pyvasp.application.ports import (
     ElectronicMetadataReader,
+    OutcarIonicSeriesReader,
     OutcarObservablesReader,
     OutcarSummaryReader,
     RelaxInputBuilder,
@@ -20,6 +21,8 @@ from pyvasp.core.payloads import (
     ElectronicMetadataResponsePayload,
     GenerateRelaxInputRequestPayload,
     GenerateRelaxInputResponsePayload,
+    IonicSeriesRequestPayload,
+    IonicSeriesResponsePayload,
     SummaryRequestPayload,
     SummaryResponsePayload,
 )
@@ -96,6 +99,22 @@ class BuildConvergenceProfileUseCase:
             profile = build_convergence_profile(summary)
             payload = ConvergenceProfileResponsePayload.from_profile(profile, summary=summary)
             return AppResult.success(payload)
+        except (ValidationError, ParseError, OSError) as exc:
+            return AppResult.failure(exc)
+
+
+class BuildIonicSeriesUseCase:
+    """Build multi-metric ionic-step series for OUTCAR visualization workflows."""
+
+    def __init__(self, reader: OutcarIonicSeriesReader) -> None:
+        self._reader = reader
+
+    def execute(self, request: IonicSeriesRequestPayload) -> AppResult[IonicSeriesResponsePayload]:
+        """Run ionic-series extraction and return typed response payload."""
+
+        try:
+            series = self._reader.parse_ionic_series_file(request.validated_path())
+            return AppResult.success(IonicSeriesResponsePayload.from_series(series))
         except (ValidationError, ParseError, OSError) as exc:
             return AppResult.failure(exc)
 

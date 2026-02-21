@@ -16,6 +16,8 @@ from pyvasp.core.models import (
     GeneratedInputBundle,
     MagnetizationSummary,
     OutcarDiagnostics,
+    OutcarIonicSeries,
+    OutcarIonicSeriesPoint,
     OutcarSummary,
     StressTensor,
 )
@@ -23,10 +25,12 @@ from pyvasp.core.payloads import (
     DiagnosticsResponsePayload,
     ElectronicMetadataResponsePayload,
     GenerateRelaxInputResponsePayload,
+    IonicSeriesResponsePayload,
     SummaryResponsePayload,
     validate_diagnostics_request,
     validate_electronic_metadata_request,
     validate_generate_relax_input_request,
+    validate_ionic_series_request,
     validate_summary_request,
 )
 
@@ -91,6 +95,11 @@ def test_validate_generate_relax_input_request_bad_element() -> None:
 
     with pytest.raises(ValidationError):
         validate_generate_relax_input_request({"structure": structure})
+
+
+def test_validate_ionic_series_request_success() -> None:
+    payload = validate_ionic_series_request({"outcar_path": str(FIXTURE)})
+    assert payload.outcar_path == str(FIXTURE)
 
 
 def test_summary_response_payload_hides_history_when_not_requested() -> None:
@@ -215,3 +224,37 @@ def test_generate_relax_input_response_payload() -> None:
     assert mapped["system_name"] == "Si2"
     assert mapped["n_atoms"] == 2
     assert mapped["warnings"] == ["none"]
+
+
+def test_ionic_series_response_payload() -> None:
+    series = OutcarIonicSeries(
+        source_path=str(FIXTURE),
+        points=(
+            OutcarIonicSeriesPoint(
+                ionic_step=1,
+                total_energy_ev=-10.0,
+                delta_energy_ev=None,
+                relative_energy_ev=0.5,
+                max_force_ev_per_a=0.02,
+                external_pressure_kb=-3.0,
+                fermi_energy_ev=5.1,
+            ),
+            OutcarIonicSeriesPoint(
+                ionic_step=2,
+                total_energy_ev=-10.5,
+                delta_energy_ev=-0.5,
+                relative_energy_ev=0.0,
+                max_force_ev_per_a=0.005,
+                external_pressure_kb=-1.0,
+                fermi_energy_ev=5.2,
+            ),
+        ),
+        warnings=("ok",),
+    )
+
+    payload = IonicSeriesResponsePayload.from_series(series)
+    mapped = payload.to_mapping()
+    assert mapped["source_path"] == str(FIXTURE)
+    assert mapped["n_steps"] == 2
+    assert mapped["points"][0]["delta_energy_ev"] is None
+    assert mapped["points"][1]["relative_energy_ev"] == pytest.approx(0.0)

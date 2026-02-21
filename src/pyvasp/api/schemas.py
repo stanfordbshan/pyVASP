@@ -28,6 +28,12 @@ class ConvergenceProfileRequestSchema(BaseModel):
     outcar_path: str = Field(..., description="Path to an OUTCAR file")
 
 
+class IonicSeriesRequestSchema(BaseModel):
+    """Request payload for OUTCAR ionic-series endpoint."""
+
+    outcar_path: str = Field(..., description="Path to an OUTCAR file")
+
+
 class ElectronicMetadataRequestSchema(BaseModel):
     """Request payload for EIGENVAL/DOSCAR metadata endpoint."""
 
@@ -115,6 +121,18 @@ class ConvergenceProfilePointSchema(BaseModel):
     relative_energy_ev: float
 
 
+class IonicSeriesPointSchema(BaseModel):
+    """Per-step multi-metric series point for visualization."""
+
+    ionic_step: int
+    total_energy_ev: float | None
+    delta_energy_ev: float | None
+    relative_energy_ev: float | None
+    max_force_ev_per_a: float | None
+    external_pressure_kb: float | None
+    fermi_energy_ev: float | None
+
+
 class BandGapChannelSchema(BaseModel):
     """Band-gap metadata for one spin channel."""
 
@@ -194,6 +212,15 @@ class ConvergenceProfileResponseSchema(BaseModel):
     points: list[ConvergenceProfilePointSchema]
     final_total_energy_ev: float | None
     max_force_ev_per_a: float | None
+    warnings: list[str]
+
+
+class IonicSeriesResponseSchema(BaseModel):
+    """Response schema for OUTCAR ionic-series endpoint."""
+
+    source_path: str
+    points: list[IonicSeriesPointSchema]
+    n_steps: int
     warnings: list[str]
 
 

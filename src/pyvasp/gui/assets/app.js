@@ -32,6 +32,9 @@ form.addEventListener("submit", async (event) => {
   } else if (operation === "convergence_profile") {
     endpoint = "/ui/convergence-profile";
     payload = { outcar_path: outcarPath };
+  } else if (operation === "ionic_series") {
+    endpoint = "/ui/ionic-series";
+    payload = { outcar_path: outcarPath };
   } else if (operation === "electronic_metadata") {
     endpoint = "/ui/electronic-metadata";
     payload = {

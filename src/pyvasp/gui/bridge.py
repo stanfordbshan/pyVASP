@@ -9,6 +9,7 @@ from urllib import error, request
 
 from pyvasp.application.use_cases import (
     BuildConvergenceProfileUseCase,
+    BuildIonicSeriesUseCase,
     DiagnoseOutcarUseCase,
     GenerateRelaxInputUseCase,
     ParseElectronicMetadataUseCase,
@@ -19,6 +20,7 @@ from pyvasp.core.payloads import (
     validate_diagnostics_request,
     validate_electronic_metadata_request,
     validate_generate_relax_input_request,
+    validate_ionic_series_request,
     validate_summary_request,
 )
 from pyvasp.core.errors import AppError, normalize_error
@@ -46,6 +48,7 @@ class GuiBackendBridge:
         summary_use_case: SummarizeOutcarUseCase | None = None,
         diagnostics_use_case: DiagnoseOutcarUseCase | None = None,
         profile_use_case: BuildConvergenceProfileUseCase | None = None,
+        ionic_series_use_case: BuildIonicSeriesUseCase | None = None,
         electronic_use_case: ParseElectronicMetadataUseCase | None = None,
         relax_input_use_case: GenerateRelaxInputUseCase | None = None,
     ) -> None:
@@ -56,6 +59,7 @@ class GuiBackendBridge:
         self._summary_use_case = summary_use_case or SummarizeOutcarUseCase(reader=outcar_parser)
         self._diagnostics_use_case = diagnostics_use_case or DiagnoseOutcarUseCase(reader=outcar_parser)
         self._profile_use_case = profile_use_case or BuildConvergenceProfileUseCase(reader=outcar_parser)
+        self._ionic_series_use_case = ionic_series_use_case or BuildIonicSeriesUseCase(reader=outcar_parser)
         self._electronic_use_case = electronic_use_case or ParseElectronicMetadataUseCase(reader=ElectronicParser())
         self._relax_input_use_case = relax_input_use_case or GenerateRelaxInputUseCase(builder=RelaxInputGenerator())
 
@@ -103,6 +107,17 @@ class GuiBackendBridge:
             api_path="/v1/outcar/convergence-profile",
             direct_call=self._call_direct_profile,
             operation_label="convergence profile",
+        )
+
+    def build_ionic_series(self, *, outcar_path: str) -> dict:
+        """Build per-step multi-metric ionic series for an OUTCAR."""
+
+        payload = {"outcar_path": outcar_path}
+        return self._execute(
+            payload=payload,
+            api_path="/v1/outcar/ionic-series",
+            direct_call=self._call_direct_ionic_series,
+            operation_label="ionic series",
         )
 
     def parse_electronic_metadata(
@@ -233,6 +248,16 @@ class GuiBackendBridge:
         result = self._electronic_use_case.execute(canonical)
         if not result.ok or result.value is None:
             raise RuntimeError(_format_app_error(result.error, "Unknown direct electronic metadata error"))
+        return result.value.to_mapping()
+
+    def _call_direct_ionic_series(self, payload: dict) -> dict:
+        try:
+            canonical = validate_ionic_series_request(payload)
+        except Exception as exc:
+            raise RuntimeError(_format_app_error(normalize_error(exc), "Invalid ionic series request")) from exc
+        result = self._ionic_series_use_case.execute(canonical)
+        if not result.ok or result.value is None:
+            raise RuntimeError(_format_app_error(result.error, "Unknown direct ionic series error"))
         return result.value.to_mapping()
 
     def _call_direct_relax_input(self, payload: dict) -> dict:

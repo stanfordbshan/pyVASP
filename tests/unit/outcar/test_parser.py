@@ -41,6 +41,21 @@ def test_parse_outcar_observables_fields() -> None:
     assert observables.warnings == ()
 
 
+def test_parse_outcar_ionic_series_fields() -> None:
+    parser = OutcarParser()
+    series = parser.parse_ionic_series_file(FIXTURE_PHASE2)
+
+    assert len(series.points) == 2
+    assert series.points[0].ionic_step == 1
+    assert series.points[0].total_energy_ev == pytest.approx(-20.0)
+    assert series.points[1].delta_energy_ev == pytest.approx(-5e-05)
+    assert series.points[1].relative_energy_ev == pytest.approx(0.0)
+    assert series.points[1].max_force_ev_per_a == pytest.approx(0.01)
+    assert series.points[1].external_pressure_kb == pytest.approx(-1.23)
+    assert series.points[1].fermi_energy_ev == pytest.approx(4.25)
+    assert series.warnings == ()
+
+
 def test_parse_outcar_rejects_invalid_text() -> None:
     parser = OutcarParser()
     with pytest.raises(ParseError):

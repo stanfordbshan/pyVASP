@@ -36,6 +36,12 @@ class UiConvergenceProfileRequest(BaseModel):
     outcar_path: str = Field(..., description="Path to OUTCAR")
 
 
+class UiIonicSeriesRequest(BaseModel):
+    """GUI ionic-series request schema."""
+
+    outcar_path: str = Field(..., description="Path to OUTCAR")
+
+
 class UiElectronicMetadataRequest(BaseModel):
     """GUI electronic metadata request schema."""
 
@@ -125,6 +131,13 @@ def create_gui_app(
     def ui_convergence_profile(request: UiConvergenceProfileRequest) -> dict:
         try:
             return app.state.bridge.build_convergence_profile(outcar_path=request.outcar_path)
+        except Exception as exc:
+            _raise_ui_http_error(exc)
+
+    @app.post("/ui/ionic-series")
+    def ui_ionic_series(request: UiIonicSeriesRequest) -> dict:
+        try:
+            return app.state.bridge.build_ionic_series(outcar_path=request.outcar_path)
         except Exception as exc:
             _raise_ui_http_error(exc)
 

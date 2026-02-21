@@ -10,6 +10,8 @@ from pyvasp.core.errors import ErrorCode, ParseError
 from pyvasp.core.models import (
     EnergyPoint,
     MagnetizationSummary,
+    OutcarIonicSeries,
+    OutcarIonicSeriesPoint,
     OutcarObservables,
     OutcarSummary,
     StressTensor,
@@ -47,6 +49,12 @@ class OutcarParser:
         text = self._read_file(outcar_path)
         return self.parse_observables_text(text, source_path=str(outcar_path))
 
+    def parse_ionic_series_file(self, outcar_path: Path) -> OutcarIonicSeries:
+        """Read and parse per-step ionic series data from an OUTCAR file."""
+
+        text = self._read_file(outcar_path)
+        return self.parse_ionic_series_text(text, source_path=str(outcar_path))
+
     def parse_text(self, text: str, *, source_path: str = "<memory>") -> OutcarSummary:
         """Parse OUTCAR text and produce a transport-neutral summary."""
 
@@ -54,9 +62,11 @@ class OutcarParser:
         system_name = self._parse_system_name(lines)
         nions = self._parse_nions(text)
         energy_history = self._parse_energy_history(text)
-        fermi_energy = self._parse_fermi_energy(text)
+        fermi_history = self._parse_fermi_history(text)
+        fermi_energy = fermi_history[-1] if fermi_history else None
         electronic_iterations = self._count_electronic_iterations(lines)
-        max_force = self._parse_max_force(lines)
+        force_history = self._parse_force_history(lines)
+        max_force = force_history[-1] if force_history else None
 
         if not energy_history and system_name is None and nions is None and fermi_energy is None:
             raise ParseError("Input does not look like a valid VASP OUTCAR file")
@@ -87,7 +97,8 @@ class OutcarParser:
 
         summary = self.parse_text(text, source_path=source_path)
         lines = text.splitlines()
-        external_pressure_kb = self._parse_external_pressure(text)
+        pressure_history = self._parse_external_pressure_history(text)
+        external_pressure_kb = pressure_history[-1] if pressure_history else None
         stress_tensor_kb = self._parse_stress_tensor(text)
         magnetization = self._parse_magnetization(lines, axis="z")
 
@@ -106,6 +117,78 @@ class OutcarParser:
             stress_tensor_kb=stress_tensor_kb,
             magnetization=magnetization,
             warnings=tuple(warnings),
+        )
+
+    def parse_ionic_series_text(self, text: str, *, source_path: str = "<memory>") -> OutcarIonicSeries:
+        """Parse OUTCAR text into per-step ionic-series points for visualization."""
+
+        summary = self.parse_text(text, source_path=source_path)
+        lines = text.splitlines()
+
+        force_history = self._parse_force_history(lines)
+        pressure_history = self._parse_external_pressure_history(text)
+        fermi_history = self._parse_fermi_history(text)
+
+        step_count = max(
+            len(summary.energy_history),
+            len(force_history),
+            len(pressure_history),
+            len(fermi_history),
+        )
+
+        final_energy = summary.final_total_energy_ev
+        points: list[OutcarIonicSeriesPoint] = []
+        previous_energy: float | None = None
+
+        for idx in range(step_count):
+            energy = summary.energy_history[idx].total_energy_ev if idx < len(summary.energy_history) else None
+            delta_energy = None
+            if energy is not None and previous_energy is not None:
+                delta_energy = energy - previous_energy
+
+            relative_energy = None
+            if energy is not None and final_energy is not None:
+                relative_energy = energy - final_energy
+
+            force_value = force_history[idx] if idx < len(force_history) else None
+            pressure_value = pressure_history[idx] if idx < len(pressure_history) else None
+            fermi_value = fermi_history[idx] if idx < len(fermi_history) else None
+
+            points.append(
+                OutcarIonicSeriesPoint(
+                    ionic_step=idx + 1,
+                    total_energy_ev=energy,
+                    delta_energy_ev=delta_energy,
+                    relative_energy_ev=relative_energy,
+                    max_force_ev_per_a=force_value,
+                    external_pressure_kb=pressure_value,
+                    fermi_energy_ev=fermi_value,
+                )
+            )
+
+            if energy is not None:
+                previous_energy = energy
+
+        warnings = list(summary.warnings)
+        if not force_history:
+            warnings.append("No per-step force history was found")
+        elif len(force_history) != step_count:
+            warnings.append("Force history length does not match ionic step count")
+
+        if not pressure_history:
+            warnings.append("No per-step external pressure history was found")
+        elif len(pressure_history) != step_count:
+            warnings.append("External pressure history length does not match ionic step count")
+
+        if not fermi_history:
+            warnings.append("No per-step Fermi energy history was found")
+        elif len(fermi_history) != step_count:
+            warnings.append("Fermi energy history length does not match ionic step count")
+
+        return OutcarIonicSeries(
+            source_path=source_path,
+            points=tuple(points),
+            warnings=tuple(dict.fromkeys(warnings)),
         )
 
     def _read_file(self, outcar_path: Path) -> str:
@@ -135,17 +218,11 @@ class OutcarParser:
         energies = [float(raw) for raw in TOTEN_RE.findall(text)]
         return [EnergyPoint(ionic_step=index + 1, total_energy_ev=value) for index, value in enumerate(energies)]
 
-    def _parse_fermi_energy(self, text: str) -> float | None:
-        matches = FERMI_RE.findall(text)
-        if not matches:
-            return None
-        return float(matches[-1])
+    def _parse_fermi_history(self, text: str) -> list[float]:
+        return [float(raw) for raw in FERMI_RE.findall(text)]
 
-    def _parse_external_pressure(self, text: str) -> float | None:
-        matches = EXTERNAL_PRESSURE_RE.findall(text)
-        if not matches:
-            return None
-        return float(matches[-1])
+    def _parse_external_pressure_history(self, text: str) -> list[float]:
+        return [float(raw) for raw in EXTERNAL_PRESSURE_RE.findall(text)]
 
     def _parse_stress_tensor(self, text: str) -> StressTensor | None:
         matches = STRESS_RE.findall(text)
@@ -225,7 +302,7 @@ class OutcarParser:
     def _count_electronic_iterations(self, lines: list[str]) -> int:
         return sum(1 for line in lines if ELEC_ITER_RE.match(line))
 
-    def _parse_max_force(self, lines: list[str]) -> float | None:
+    def _parse_force_history(self, lines: list[str]) -> list[float]:
         block_maxima: list[float] = []
         idx = 0
 
@@ -268,6 +345,4 @@ class OutcarParser:
 
             idx += 1
 
-        if not block_maxima:
-            return None
-        return block_maxima[-1]
+        return block_maxima

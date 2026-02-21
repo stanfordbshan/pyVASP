@@ -16,6 +16,7 @@ from pyvasp.core.models import (
     ElectronicStructureMetadata,
     GeneratedInputBundle,
     OutcarDiagnostics,
+    OutcarIonicSeries,
     OutcarSummary,
     RelaxInputSpec,
     RelaxStructure,
@@ -89,6 +90,22 @@ class ConvergenceProfileRequestPayload:
 
     @classmethod
     def from_mapping(cls, raw: dict[str, Any]) -> "ConvergenceProfileRequestPayload":
+        path_value = raw.get("outcar_path")
+        resolved = validate_outcar_path(str(path_value) if path_value is not None else "")
+        return cls(outcar_path=str(resolved))
+
+    def validated_path(self) -> Path:
+        return validate_outcar_path(self.outcar_path)
+
+
+@dataclass(frozen=True)
+class IonicSeriesRequestPayload:
+    """Canonical request payload for OUTCAR ionic-series visualization data."""
+
+    outcar_path: str
+
+    @classmethod
+    def from_mapping(cls, raw: dict[str, Any]) -> "IonicSeriesRequestPayload":
         path_value = raw.get("outcar_path")
         resolved = validate_outcar_path(str(path_value) if path_value is not None else "")
         return cls(outcar_path=str(resolved))
@@ -384,6 +401,43 @@ class ConvergenceProfileResponsePayload:
 
 
 @dataclass(frozen=True)
+class IonicSeriesResponsePayload:
+    """Canonical ionic-series response consumed by adapters."""
+
+    source_path: str
+    points: tuple[dict[str, Any], ...]
+    n_steps: int
+    warnings: tuple[str, ...]
+
+    @classmethod
+    def from_series(cls, series: OutcarIonicSeries) -> "IonicSeriesResponsePayload":
+        points = tuple(
+            {
+                "ionic_step": point.ionic_step,
+                "total_energy_ev": point.total_energy_ev,
+                "delta_energy_ev": point.delta_energy_ev,
+                "relative_energy_ev": point.relative_energy_ev,
+                "max_force_ev_per_a": point.max_force_ev_per_a,
+                "external_pressure_kb": point.external_pressure_kb,
+                "fermi_energy_ev": point.fermi_energy_ev,
+            }
+            for point in series.points
+        )
+        return cls(
+            source_path=series.source_path,
+            points=points,
+            n_steps=len(points),
+            warnings=series.warnings,
+        )
+
+    def to_mapping(self) -> dict[str, Any]:
+        mapped = asdict(self)
+        mapped["warnings"] = list(self.warnings)
+        mapped["points"] = list(self.points)
+        return mapped
+
+
+@dataclass(frozen=True)
 class ElectronicMetadataResponsePayload:
     """Canonical EIGENVAL/DOSCAR metadata response consumed by adapters."""
 
@@ -464,6 +518,17 @@ def validate_convergence_profile_request(raw: dict[str, Any]) -> ConvergenceProf
 
     try:
         return ConvergenceProfileRequestPayload.from_mapping(raw)
+    except ValidationError:
+        raise
+    except Exception as exc:  # pragma: no cover - defensive normalization
+        raise ValidationError(str(exc)) from exc
+
+
+def validate_ionic_series_request(raw: dict[str, Any]) -> IonicSeriesRequestPayload:
+    """Map arbitrary adapter payload into canonical ionic-series request."""
+
+    try:
+        return IonicSeriesRequestPayload.from_mapping(raw)
     except ValidationError:
         raise
     except Exception as exc:  # pragma: no cover - defensive normalization

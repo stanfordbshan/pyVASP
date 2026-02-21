@@ -51,6 +51,10 @@ def build_parser() -> argparse.ArgumentParser:
     profile.add_argument("outcar_path", help="Path to OUTCAR file")
     _add_shared_backend_args(profile)
 
+    ionic_series = subparsers.add_parser("ionic-series", help="Per-step OUTCAR series for visualization")
+    ionic_series.add_argument("outcar_path", help="Path to OUTCAR file")
+    _add_shared_backend_args(ionic_series)
+
     electronic = subparsers.add_parser(
         "electronic-metadata",
         help="Parse VASPKIT-like band gap/DOS metadata from EIGENVAL and DOSCAR",
@@ -105,6 +109,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "convergence-profile":
         return _run_convergence_profile(bridge, args)
 
+    if args.command == "ionic-series":
+        return _run_ionic_series(bridge, args)
+
     if args.command == "electronic-metadata":
         return _run_electronic_metadata(bridge, args)
 
@@ -147,6 +154,17 @@ def _run_diagnostics(bridge: GuiBackendBridge, args: argparse.Namespace) -> int:
 def _run_convergence_profile(bridge: GuiBackendBridge, args: argparse.Namespace) -> int:
     try:
         data = bridge.build_convergence_profile(outcar_path=args.outcar_path)
+    except Exception as exc:
+        print(json.dumps({"error": str(exc)}), file=sys.stderr)
+        return 1
+
+    print(json.dumps(data, indent=2))
+    return 0
+
+
+def _run_ionic_series(bridge: GuiBackendBridge, args: argparse.Namespace) -> int:
+    try:
+        data = bridge.build_ionic_series(outcar_path=args.outcar_path)
     except Exception as exc:
         print(json.dumps({"error": str(exc)}), file=sys.stderr)
         return 1

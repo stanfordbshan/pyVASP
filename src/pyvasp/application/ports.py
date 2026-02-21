@@ -8,6 +8,7 @@ from typing import Protocol
 from pyvasp.core.models import (
     ElectronicStructureMetadata,
     GeneratedInputBundle,
+    OutcarIonicSeries,
     OutcarObservables,
     OutcarSummary,
     RelaxInputSpec,
@@ -26,6 +27,13 @@ class OutcarObservablesReader(Protocol):
 
     def parse_observables_file(self, outcar_path: Path) -> OutcarObservables:
         """Parse OUTCAR and produce diagnostics observables."""
+
+
+class OutcarIonicSeriesReader(Protocol):
+    """Port for method modules that can parse per-step OUTCAR series data."""
+
+    def parse_ionic_series_file(self, outcar_path: Path) -> OutcarIonicSeries:
+        """Parse OUTCAR and produce per-step series metrics."""
 
 
 class RelaxInputBuilder(Protocol):

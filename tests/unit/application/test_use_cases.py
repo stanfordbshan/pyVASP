@@ -4,6 +4,7 @@ from pathlib import Path
 
 from pyvasp.application.use_cases import (
     BuildConvergenceProfileUseCase,
+    BuildIonicSeriesUseCase,
     DiagnoseOutcarUseCase,
     GenerateRelaxInputUseCase,
     ParseElectronicMetadataUseCase,
@@ -19,6 +20,8 @@ from pyvasp.core.models import (
     GeneratedInputBundle,
     MagnetizationSummary,
     OutcarObservables,
+    OutcarIonicSeries,
+    OutcarIonicSeriesPoint,
     OutcarSummary,
     RelaxInputSpec,
     StressTensor,
@@ -28,6 +31,7 @@ from pyvasp.core.payloads import (
     DiagnosticsRequestPayload,
     ElectronicMetadataRequestPayload,
     GenerateRelaxInputRequestPayload,
+    IonicSeriesRequestPayload,
     SummaryRequestPayload,
 )
 
@@ -89,6 +93,39 @@ class WorkingObservablesReader:
 class BrokenObservablesReader:
     def parse_observables_file(self, outcar_path: Path) -> OutcarObservables:
         raise ParseError("diagnostics failed")
+
+
+class WorkingIonicSeriesReader:
+    def parse_ionic_series_file(self, outcar_path: Path) -> OutcarIonicSeries:
+        return OutcarIonicSeries(
+            source_path=str(outcar_path),
+            points=(
+                OutcarIonicSeriesPoint(
+                    ionic_step=1,
+                    total_energy_ev=-20.0,
+                    delta_energy_ev=None,
+                    relative_energy_ev=0.1,
+                    max_force_ev_per_a=0.05,
+                    external_pressure_kb=-3.21,
+                    fermi_energy_ev=4.2,
+                ),
+                OutcarIonicSeriesPoint(
+                    ionic_step=2,
+                    total_energy_ev=-20.1,
+                    delta_energy_ev=-0.1,
+                    relative_energy_ev=0.0,
+                    max_force_ev_per_a=0.01,
+                    external_pressure_kb=-1.23,
+                    fermi_energy_ev=4.25,
+                ),
+            ),
+            warnings=(),
+        )
+
+
+class BrokenIonicSeriesReader:
+    def parse_ionic_series_file(self, outcar_path: Path) -> OutcarIonicSeries:
+        raise ParseError("ionic series failed")
 
 
 class WorkingElectronicReader:
@@ -208,6 +245,28 @@ def test_profile_use_case_success() -> None:
     assert result.ok is True
     assert result.value is not None
     assert len(result.value.points) == 2
+
+
+def test_ionic_series_use_case_success() -> None:
+    use_case = BuildIonicSeriesUseCase(reader=WorkingIonicSeriesReader())
+    request = IonicSeriesRequestPayload(outcar_path=str(FIXTURE))
+
+    result = use_case.execute(request)
+    assert result.ok is True
+    assert result.value is not None
+    assert result.value.n_steps == 2
+    assert result.value.points[1]["external_pressure_kb"] == -1.23
+
+
+def test_ionic_series_use_case_failure() -> None:
+    use_case = BuildIonicSeriesUseCase(reader=BrokenIonicSeriesReader())
+    request = IonicSeriesRequestPayload(outcar_path=str(FIXTURE))
+
+    result = use_case.execute(request)
+    assert result.ok is False
+    assert result.error is not None
+    assert result.error.code == ErrorCode.PARSE_ERROR
+    assert result.error.message == "ionic series failed"
 
 
 def test_electronic_use_case_success() -> None:

@@ -109,6 +109,21 @@ def test_api_convergence_profile_success() -> None:
     assert body["points"][0]["delta_energy_ev"] is None
 
 
+def test_api_ionic_series_success() -> None:
+    client = TestClient(create_app())
+    response = client.post(
+        "/v1/outcar/ionic-series",
+        json={"outcar_path": str(FIXTURE_PHASE2)},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["source_path"] == str(FIXTURE_PHASE2)
+    assert body["n_steps"] == 2
+    assert body["points"][1]["relative_energy_ev"] == 0.0
+    assert body["points"][1]["external_pressure_kb"] == -1.23
+
+
 def test_api_electronic_metadata_success() -> None:
     client = TestClient(create_app())
     response = client.post(
