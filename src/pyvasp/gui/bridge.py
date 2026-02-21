@@ -10,6 +10,7 @@ from urllib import error, request
 from pyvasp.application.use_cases import (
     BatchDiagnoseOutcarUseCase,
     BatchSummarizeOutcarUseCase,
+    BuildBatchInsightsUseCase,
     BuildConvergenceProfileUseCase,
     BuildDosProfileUseCase,
     BuildIonicSeriesUseCase,
@@ -22,6 +23,7 @@ from pyvasp.application.use_cases import (
 )
 from pyvasp.core.payloads import (
     validate_batch_diagnostics_request,
+    validate_batch_insights_request,
     validate_batch_summary_request,
     validate_convergence_profile_request,
     validate_discover_outcar_runs_request,
@@ -59,6 +61,7 @@ class GuiBackendBridge:
         discover_outcar_runs_use_case: DiscoverOutcarRunsUseCase | None = None,
         batch_summary_use_case: BatchSummarizeOutcarUseCase | None = None,
         batch_diagnostics_use_case: BatchDiagnoseOutcarUseCase | None = None,
+        batch_insights_use_case: BuildBatchInsightsUseCase | None = None,
         diagnostics_use_case: DiagnoseOutcarUseCase | None = None,
         profile_use_case: BuildConvergenceProfileUseCase | None = None,
         ionic_series_use_case: BuildIonicSeriesUseCase | None = None,
@@ -78,6 +81,7 @@ class GuiBackendBridge:
         self._batch_diagnostics_use_case = (
             batch_diagnostics_use_case or BatchDiagnoseOutcarUseCase(reader=outcar_parser)
         )
+        self._batch_insights_use_case = batch_insights_use_case or BuildBatchInsightsUseCase(reader=outcar_parser)
         self._diagnostics_use_case = diagnostics_use_case or DiagnoseOutcarUseCase(reader=outcar_parser)
         self._profile_use_case = profile_use_case or BuildConvergenceProfileUseCase(reader=outcar_parser)
         self._ionic_series_use_case = ionic_series_use_case or BuildIonicSeriesUseCase(reader=outcar_parser)
@@ -185,6 +189,31 @@ class GuiBackendBridge:
             api_path="/v1/outcar/batch-diagnostics",
             direct_call=self._call_direct_batch_diagnostics,
             operation_label="batch diagnostics",
+        )
+
+    def batch_insights_outcars(
+        self,
+        *,
+        outcar_paths: list[str],
+        energy_tolerance_ev: float = 1e-4,
+        force_tolerance_ev_per_a: float = 0.02,
+        top_n: int = 5,
+        fail_fast: bool = False,
+    ) -> dict:
+        """Build aggregate screening insights for multiple OUTCAR files."""
+
+        payload = {
+            "outcar_paths": list(outcar_paths),
+            "energy_tolerance_ev": energy_tolerance_ev,
+            "force_tolerance_ev_per_a": force_tolerance_ev_per_a,
+            "top_n": top_n,
+            "fail_fast": fail_fast,
+        }
+        return self._execute(
+            payload=payload,
+            api_path="/v1/outcar/batch-insights",
+            direct_call=self._call_direct_batch_insights,
+            operation_label="batch insights",
         )
 
     def build_convergence_profile(self, *, outcar_path: str) -> dict:
@@ -389,6 +418,16 @@ class GuiBackendBridge:
         result = self._batch_diagnostics_use_case.execute(canonical)
         if not result.ok or result.value is None:
             raise RuntimeError(_format_app_error(result.error, "Unknown direct batch diagnostics error"))
+        return result.value.to_mapping()
+
+    def _call_direct_batch_insights(self, payload: dict) -> dict:
+        try:
+            canonical = validate_batch_insights_request(payload)
+        except Exception as exc:
+            raise RuntimeError(_format_app_error(normalize_error(exc), "Invalid batch insights request")) from exc
+        result = self._batch_insights_use_case.execute(canonical)
+        if not result.ok or result.value is None:
+            raise RuntimeError(_format_app_error(result.error, "Unknown direct batch insights error"))
         return result.value.to_mapping()
 
     def _call_direct_profile(self, payload: dict) -> dict:

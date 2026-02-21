@@ -9,6 +9,8 @@ from fastapi import APIRouter, HTTPException, status
 from pyvasp.api.schemas import (
     BatchDiagnosticsRequestSchema,
     BatchDiagnosticsResponseSchema,
+    BatchInsightsRequestSchema,
+    BatchInsightsResponseSchema,
     BatchSummaryRequestSchema,
     BatchSummaryResponseSchema,
     ConvergenceProfileRequestSchema,
@@ -33,6 +35,7 @@ from pyvasp.api.schemas import (
 )
 from pyvasp.application.use_cases import (
     BatchDiagnoseOutcarUseCase,
+    BuildBatchInsightsUseCase,
     BatchSummarizeOutcarUseCase,
     BuildConvergenceProfileUseCase,
     BuildDosProfileUseCase,
@@ -47,6 +50,7 @@ from pyvasp.application.use_cases import (
 from pyvasp.core.errors import AppError, ErrorCode, normalize_error
 from pyvasp.core.payloads import (
     validate_batch_diagnostics_request,
+    validate_batch_insights_request,
     validate_batch_summary_request,
     validate_convergence_profile_request,
     validate_discover_outcar_runs_request,
@@ -65,6 +69,7 @@ def create_router(
     discover_outcar_runs_use_case: DiscoverOutcarRunsUseCase,
     batch_summary_use_case: BatchSummarizeOutcarUseCase,
     batch_diagnostics_use_case: BatchDiagnoseOutcarUseCase,
+    batch_insights_use_case: BuildBatchInsightsUseCase,
     diagnostics_use_case: DiagnoseOutcarUseCase,
     profile_use_case: BuildConvergenceProfileUseCase,
     ionic_series_use_case: BuildIonicSeriesUseCase,
@@ -134,6 +139,22 @@ def create_router(
         if not result.ok or result.value is None:
             _raise_http_from_error(result.error or AppError(ErrorCode.INTERNAL_ERROR, "Unknown application error"))
         return BatchDiagnosticsResponseSchema(**result.value.to_mapping())
+
+    @router.post(
+        "/v1/outcar/batch-insights",
+        response_model=BatchInsightsResponseSchema,
+        responses=error_responses,
+    )
+    def batch_insights(request: BatchInsightsRequestSchema) -> BatchInsightsResponseSchema:
+        try:
+            payload = validate_batch_insights_request(request.model_dump())
+        except Exception as exc:
+            _raise_http_from_error(normalize_error(exc))
+
+        result = batch_insights_use_case.execute(payload)
+        if not result.ok or result.value is None:
+            _raise_http_from_error(result.error or AppError(ErrorCode.INTERNAL_ERROR, "Unknown application error"))
+        return BatchInsightsResponseSchema(**result.value.to_mapping())
 
     @router.post("/v1/outcar/diagnostics", response_model=DiagnosticsResponseSchema, responses=error_responses)
     def diagnose_outcar(request: DiagnosticsRequestSchema) -> DiagnosticsResponseSchema:

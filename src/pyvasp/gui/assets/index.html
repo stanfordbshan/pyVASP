@@ -90,6 +90,10 @@
                 <label for="batch_max_runs">Max discovered runs</label>
                 <input id="batch_max_runs" name="batch_max_runs" type="number" step="1" value="200" />
               </div>
+              <div class="mini-grid">
+                <label for="batch_top_n">Top ranked runs</label>
+                <input id="batch_top_n" name="batch_top_n" type="number" step="1" value="5" />
+              </div>
             </div>
             <div class="inline-actions">
               <button type="button" data-action="discover_runs">Discover Runs From Root</button>
@@ -107,6 +111,7 @@
             <div class="action-grid">
               <button type="button" data-action="batch_summary">Batch Summary</button>
               <button type="button" data-action="batch_diagnostics">Batch Diagnostics</button>
+              <button type="button" data-action="batch_insights">Batch Insights</button>
             </div>
           </article>
 

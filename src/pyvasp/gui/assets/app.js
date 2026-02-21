@@ -13,6 +13,7 @@ const forceToleranceInput = document.getElementById("force_tol");
 const batchFailFastInput = document.getElementById("batch_fail_fast");
 const batchRecursiveInput = document.getElementById("batch_recursive");
 const batchMaxRunsInput = document.getElementById("batch_max_runs");
+const batchTopNInput = document.getElementById("batch_top_n");
 
 const parseEigenvalInput = document.getElementById("parse_eigenval");
 const parseDoscarInput = document.getElementById("parse_doscar");
@@ -51,6 +52,7 @@ const ACTION_LABELS = {
   ionic_series: "Ionic Series",
   batch_summary: "Batch Summary",
   batch_diagnostics: "Batch Diagnostics",
+  batch_insights: "Batch Insights",
   discover_runs: "Discover Runs",
   electronic_metadata: "Electronic Metadata",
   dos_profile: "DOS Profile",
@@ -349,6 +351,20 @@ function buildOperationRequest(action) {
         outcar_paths: outcarPaths,
         energy_tolerance_ev: readPositiveNumber(energyToleranceInput, "Energy tolerance"),
         force_tolerance_ev_per_a: readPositiveNumber(forceToleranceInput, "Force tolerance"),
+        fail_fast: batchFailFastInput.checked,
+      },
+    };
+  }
+
+  if (action === "batch_insights") {
+    const outcarPaths = parseBatchOutcarPaths(batchOutputDirsInput.value);
+    return {
+      endpoint: "/ui/batch-insights",
+      payload: {
+        outcar_paths: outcarPaths,
+        energy_tolerance_ev: readPositiveNumber(energyToleranceInput, "Energy tolerance"),
+        force_tolerance_ev_per_a: readPositiveNumber(forceToleranceInput, "Force tolerance"),
+        top_n: readPositiveInteger(batchTopNInput, "Top ranked runs"),
         fail_fast: batchFailFastInput.checked,
       },
     };
@@ -672,6 +688,10 @@ function buildRenderedResult(action, payload) {
 
   if (action === "batch_diagnostics") {
     return renderBatchDiagnostics(payload);
+  }
+
+  if (action === "batch_insights") {
+    return renderBatchInsights(payload);
   }
 
   if (action === "electronic_metadata") {
@@ -1043,6 +1063,89 @@ function renderBatchDiagnostics(data) {
       )
     );
     stack.appendChild(tableSection);
+  }
+
+  return stack;
+}
+
+function renderBatchInsights(data) {
+  const stack = createElement("div", "result-stack");
+  const rows = Array.isArray(data.rows) ? data.rows : [];
+  const topRows = Array.isArray(data.top_lowest_energy) ? data.top_lowest_energy : [];
+
+  const overview = createSection("Batch Insights", "Aggregate screening metrics with low-energy ranking.");
+  overview.appendChild(
+    createMetricGrid([
+      { label: "Total", value: data.total_count },
+      { label: "Succeeded", value: data.success_count },
+      { label: "Failed", value: data.error_count },
+      { label: "Converged", value: data.converged_count },
+      { label: "Not Converged", value: data.not_converged_count },
+      { label: "Unknown Convergence", value: data.unknown_convergence_count },
+      { label: "Min Energy (eV)", value: data.energy_min_ev },
+      { label: "Max Energy (eV)", value: data.energy_max_ev },
+      { label: "Mean Energy (eV)", value: data.energy_mean_ev },
+      { label: "Energy Span (eV)", value: data.energy_span_ev },
+      { label: "Mean Max Force (eV/Ang)", value: data.mean_max_force_ev_per_a },
+    ])
+  );
+  stack.appendChild(overview);
+
+  if (topRows.length > 0) {
+    const ranking = createSection("Top Lowest-Energy Runs");
+    ranking.appendChild(
+      createTable(
+        [
+          { label: "Rank", value: (row) => row.rank },
+          { label: "Run", value: (row) => row.outcar_path },
+          { label: "System", value: (row) => row.system_name || "-" },
+          { label: "Final Energy (eV)", value: (row) => formatValue(row.final_total_energy_ev) },
+          { label: "Max Force", value: (row) => formatValue(row.max_force_ev_per_a) },
+          {
+            label: "Converged",
+            value: (row) => {
+              if (row.is_converged === null || row.is_converged === undefined) {
+                return "-";
+              }
+              return row.is_converged ? "Yes" : "No";
+            },
+          },
+        ],
+        topRows
+      )
+    );
+    stack.appendChild(ranking);
+  }
+
+  if (rows.length > 0) {
+    const detail = createSection("Per-Run Detail");
+    detail.appendChild(
+      createTable(
+        [
+          {
+            label: "Status",
+            value: (row) => createBadge(row.status === "ok" ? "OK" : "Error", row.status === "ok" ? "success" : "danger"),
+          },
+          { label: "Run", value: (row) => row.outcar_path },
+          { label: "System", value: (row) => row.system_name || "-" },
+          { label: "Final Energy (eV)", value: (row) => formatValue(row.final_total_energy_ev) },
+          { label: "Max Force", value: (row) => formatValue(row.max_force_ev_per_a) },
+          { label: "Pressure (kB)", value: (row) => formatValue(row.external_pressure_kb) },
+          {
+            label: "Converged",
+            value: (row) => {
+              if (row.is_converged === null || row.is_converged === undefined) {
+                return "-";
+              }
+              return row.is_converged ? "Yes" : "No";
+            },
+          },
+          { label: "Error", value: (row) => (row.error && row.error.code ? row.error.code : "-") },
+        ],
+        rows
+      )
+    );
+    stack.appendChild(detail);
   }
 
   return stack;

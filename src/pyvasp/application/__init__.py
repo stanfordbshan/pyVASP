@@ -3,6 +3,7 @@
 from pyvasp.application.use_cases import (
     BatchDiagnoseOutcarUseCase,
     BatchSummarizeOutcarUseCase,
+    BuildBatchInsightsUseCase,
     BuildConvergenceProfileUseCase,
     BuildDosProfileUseCase,
     BuildIonicSeriesUseCase,
@@ -18,6 +19,7 @@ __all__ = [
     "SummarizeOutcarUseCase",
     "BatchDiagnoseOutcarUseCase",
     "BatchSummarizeOutcarUseCase",
+    "BuildBatchInsightsUseCase",
     "DiagnoseOutcarUseCase",
     "BuildConvergenceProfileUseCase",
     "BuildDosProfileUseCase",

@@ -27,6 +27,9 @@ from pyvasp.core.payloads import (
     BatchDiagnosticsRequestPayload,
     BatchDiagnosticsResponsePayload,
     BatchDiagnosticsRowPayload,
+    BatchInsightsResponsePayload,
+    BatchInsightsRowPayload,
+    BatchInsightsTopRunPayload,
     DiscoverOutcarRunsResponsePayload,
     BatchSummaryResponsePayload,
     BatchSummaryRowPayload,
@@ -38,6 +41,7 @@ from pyvasp.core.payloads import (
     IonicSeriesResponsePayload,
     SummaryResponsePayload,
     validate_batch_diagnostics_request,
+    validate_batch_insights_request,
     validate_batch_summary_request,
     validate_discover_outcar_runs_request,
     validate_diagnostics_request,
@@ -101,6 +105,31 @@ def test_validate_batch_diagnostics_request_success() -> None:
 def test_validate_batch_diagnostics_request_requires_nonempty_list() -> None:
     with pytest.raises(ValidationError):
         validate_batch_diagnostics_request({"outcar_paths": []})
+
+
+def test_validate_batch_insights_request_success() -> None:
+    payload = validate_batch_insights_request(
+        {
+            "outcar_paths": [str(FIXTURE)],
+            "energy_tolerance_ev": 1e-4,
+            "force_tolerance_ev_per_a": 0.02,
+            "top_n": 4,
+            "fail_fast": True,
+        }
+    )
+    assert payload.outcar_paths == (str(FIXTURE),)
+    assert payload.top_n == 4
+    assert payload.fail_fast is True
+
+
+def test_validate_batch_insights_request_bad_top_n() -> None:
+    with pytest.raises(ValidationError):
+        validate_batch_insights_request(
+            {
+                "outcar_paths": [str(FIXTURE)],
+                "top_n": 0,
+            }
+        )
 
 
 def test_validate_discover_outcar_runs_request_success() -> None:
@@ -524,4 +553,62 @@ def test_batch_diagnostics_response_payload_mapping() -> None:
     assert mapped["success_count"] == 1
     assert mapped["error_count"] == 1
     assert mapped["rows"][0]["is_converged"] is True
+    assert mapped["rows"][1]["error"]["code"] == "FILE_NOT_FOUND"
+
+
+def test_batch_insights_response_payload_mapping() -> None:
+    payload = BatchInsightsResponsePayload(
+        total_count=2,
+        success_count=1,
+        error_count=1,
+        converged_count=1,
+        not_converged_count=0,
+        unknown_convergence_count=0,
+        energy_min_ev=-10.5,
+        energy_max_ev=-10.5,
+        energy_mean_ev=-10.5,
+        energy_span_ev=0.0,
+        mean_max_force_ev_per_a=0.005,
+        top_lowest_energy=(
+            BatchInsightsTopRunPayload(
+                rank=1,
+                outcar_path=str(FIXTURE),
+                system_name="Si2",
+                final_total_energy_ev=-10.5,
+                max_force_ev_per_a=0.005,
+                is_converged=True,
+            ),
+        ),
+        rows=(
+            BatchInsightsRowPayload(
+                outcar_path=str(FIXTURE),
+                status="ok",
+                system_name="Si2",
+                final_total_energy_ev=-10.5,
+                max_force_ev_per_a=0.005,
+                external_pressure_kb=-1.23,
+                is_converged=True,
+                warnings=("ok",),
+                error=None,
+            ),
+            BatchInsightsRowPayload(
+                outcar_path="/missing/OUTCAR",
+                status="error",
+                system_name=None,
+                final_total_energy_ev=None,
+                max_force_ev_per_a=None,
+                external_pressure_kb=None,
+                is_converged=None,
+                warnings=(),
+                error={"code": "FILE_NOT_FOUND", "message": "missing"},
+            ),
+        ),
+    )
+
+    mapped = payload.to_mapping()
+    assert mapped["total_count"] == 2
+    assert mapped["success_count"] == 1
+    assert mapped["error_count"] == 1
+    assert mapped["top_lowest_energy"][0]["rank"] == 1
+    assert mapped["rows"][0]["warnings"] == ["ok"]
     assert mapped["rows"][1]["error"]["code"] == "FILE_NOT_FOUND"

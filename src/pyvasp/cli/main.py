@@ -79,6 +79,36 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_shared_backend_args(batch_diagnostics)
 
+    batch_insights = subparsers.add_parser(
+        "batch-insights",
+        help="Build aggregate screening insights across multiple OUTCAR files",
+    )
+    batch_insights.add_argument("outcar_paths", nargs="+", help="One or more OUTCAR file paths")
+    batch_insights.add_argument(
+        "--energy-tol",
+        type=float,
+        default=1e-4,
+        help="Energy convergence tolerance in eV (|ΔE| <= tol)",
+    )
+    batch_insights.add_argument(
+        "--force-tol",
+        type=float,
+        default=0.02,
+        help="Force convergence tolerance in eV/Ang (max force <= tol)",
+    )
+    batch_insights.add_argument(
+        "--top-n",
+        type=int,
+        default=5,
+        help="Number of lowest-energy runs included in shortlist",
+    )
+    batch_insights.add_argument(
+        "--fail-fast",
+        action="store_true",
+        help="Stop processing after first failed item",
+    )
+    _add_shared_backend_args(batch_insights)
+
     diagnostics = subparsers.add_parser("diagnostics", help="Convergence/stress/magnetization diagnostics")
     diagnostics.add_argument("outcar_path", help="Path to OUTCAR file")
     diagnostics.add_argument(
@@ -199,6 +229,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "batch-diagnostics":
         return _run_batch_diagnostics(bridge, args)
 
+    if args.command == "batch-insights":
+        return _run_batch_insights(bridge, args)
+
     if args.command == "diagnostics":
         return _run_diagnostics(bridge, args)
 
@@ -273,6 +306,23 @@ def _run_batch_diagnostics(bridge: GuiBackendBridge, args: argparse.Namespace) -
             outcar_paths=args.outcar_paths,
             energy_tolerance_ev=args.energy_tol,
             force_tolerance_ev_per_a=args.force_tol,
+            fail_fast=args.fail_fast,
+        )
+    except Exception as exc:
+        print(json.dumps({"error": str(exc)}), file=sys.stderr)
+        return 1
+
+    print(json.dumps(data, indent=2))
+    return 0
+
+
+def _run_batch_insights(bridge: GuiBackendBridge, args: argparse.Namespace) -> int:
+    try:
+        data = bridge.batch_insights_outcars(
+            outcar_paths=args.outcar_paths,
+            energy_tolerance_ev=args.energy_tol,
+            force_tolerance_ev_per_a=args.force_tol,
+            top_n=args.top_n,
             fail_fast=args.fail_fast,
         )
     except Exception as exc:

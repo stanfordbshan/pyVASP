@@ -69,6 +69,17 @@ def test_bridge_direct_mode_profile_electronic_and_input_generation() -> None:
     assert batch_diag["success_count"] == 1
     assert batch_diag["rows"][0]["is_converged"] is True
 
+    batch_insights = bridge.batch_insights_outcars(
+        outcar_paths=[str(FIXTURE_PHASE2), "/missing/OUTCAR"],
+        energy_tolerance_ev=1e-4,
+        force_tolerance_ev_per_a=0.02,
+        top_n=3,
+        fail_fast=False,
+    )
+    assert batch_insights["total_count"] == 2
+    assert batch_insights["success_count"] == 1
+    assert batch_insights["top_lowest_energy"][0]["rank"] == 1
+
     electronic = bridge.parse_electronic_metadata(
         eigenval_path=str(EIGENVAL_FIXTURE),
         doscar_path=str(DOSCAR_FIXTURE),
@@ -140,6 +151,8 @@ def test_gui_host_index_exposes_tabbed_workspace() -> None:
     assert "Input Builder" in html
     assert 'id="batch_root_dir"' in html
     assert 'id="pick_batch_root_dir"' in html
+    assert 'id="batch_top_n"' in html
+    assert 'data-action="batch_insights"' in html
     assert 'id="parse_eigenval"' in html
     assert 'id="parse_doscar"' in html
     assert 'id="dos_window_ev"' in html
@@ -225,6 +238,21 @@ def test_gui_host_ui_profile_electronic_and_input_endpoints() -> None:
     assert batch_diag.status_code == 200
     assert batch_diag.json()["total_count"] == 2
     assert batch_diag.json()["success_count"] == 1
+
+    batch_insights = client.post(
+        "/ui/batch-insights",
+        json={
+            "outcar_paths": [str(FIXTURE_PHASE2), "/missing/OUTCAR"],
+            "energy_tolerance_ev": 1e-4,
+            "force_tolerance_ev_per_a": 0.02,
+            "top_n": 3,
+            "fail_fast": False,
+        },
+    )
+    assert batch_insights.status_code == 200
+    assert batch_insights.json()["total_count"] == 2
+    assert batch_insights.json()["success_count"] == 1
+    assert batch_insights.json()["top_lowest_energy"][0]["rank"] == 1
 
     discovered = client.post(
         "/ui/discover-runs",

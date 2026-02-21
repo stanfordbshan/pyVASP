@@ -26,6 +26,8 @@ from pyvasp.core.models import (
 from pyvasp.core.payloads import (
     BatchDiagnosticsRequestPayload,
     BatchDiagnosticsResponsePayload,
+    BatchInsightsRequestPayload,
+    BatchInsightsResponsePayload,
     BatchSummaryRequestPayload,
     BatchSummaryResponsePayload,
     ConvergenceProfileRequestPayload,
@@ -57,6 +59,8 @@ __all__ = [
     "BandGapSummary",
     "BatchDiagnosticsRequestPayload",
     "BatchDiagnosticsResponsePayload",
+    "BatchInsightsRequestPayload",
+    "BatchInsightsResponsePayload",
     "BatchSummaryRequestPayload",
     "BatchSummaryResponsePayload",
     "ConvergenceProfile",

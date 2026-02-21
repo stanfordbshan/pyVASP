@@ -30,6 +30,16 @@ class BatchDiagnosticsRequestSchema(BaseModel):
     fail_fast: bool = Field(default=False, description="Stop processing after the first failed item")
 
 
+class BatchInsightsRequestSchema(BaseModel):
+    """Request payload for batch OUTCAR screening-insights endpoint."""
+
+    outcar_paths: list[str] = Field(..., description="List of OUTCAR file paths")
+    energy_tolerance_ev: float = Field(default=1e-4, description="Convergence threshold for |ΔE| in eV")
+    force_tolerance_ev_per_a: float = Field(default=0.02, description="Convergence threshold for max force")
+    top_n: int = Field(default=5, description="Number of low-energy runs returned in ranked shortlist")
+    fail_fast: bool = Field(default=False, description="Stop processing after the first failed item")
+
+
 class DiscoverOutcarRunsRequestSchema(BaseModel):
     """Request payload for root-directory OUTCAR discovery endpoint."""
 
@@ -283,6 +293,49 @@ class BatchDiagnosticsResponseSchema(BaseModel):
     success_count: int
     error_count: int
     rows: list[BatchDiagnosticsRowSchema]
+
+
+class BatchInsightsRowSchema(BaseModel):
+    """Per-OUTCAR row for batch screening-insights endpoint responses."""
+
+    outcar_path: str
+    status: str
+    system_name: str | None
+    final_total_energy_ev: float | None
+    max_force_ev_per_a: float | None
+    external_pressure_kb: float | None
+    is_converged: bool | None
+    warnings: list[str]
+    error: dict[str, Any] | None
+
+
+class BatchInsightsTopRunSchema(BaseModel):
+    """Ranked low-energy run summary for screening insights."""
+
+    rank: int
+    outcar_path: str
+    system_name: str | None
+    final_total_energy_ev: float
+    max_force_ev_per_a: float | None
+    is_converged: bool | None
+
+
+class BatchInsightsResponseSchema(BaseModel):
+    """Response schema for batch OUTCAR screening-insights endpoint."""
+
+    total_count: int
+    success_count: int
+    error_count: int
+    converged_count: int
+    not_converged_count: int
+    unknown_convergence_count: int
+    energy_min_ev: float | None
+    energy_max_ev: float | None
+    energy_mean_ev: float | None
+    energy_span_ev: float | None
+    mean_max_force_ev_per_a: float | None
+    top_lowest_energy: list[BatchInsightsTopRunSchema]
+    rows: list[BatchInsightsRowSchema]
 
 
 class DiscoverOutcarRunsResponseSchema(BaseModel):

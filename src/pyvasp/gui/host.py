@@ -49,6 +49,16 @@ class UiBatchDiagnosticsRequest(BaseModel):
     fail_fast: bool = Field(default=False)
 
 
+class UiBatchInsightsRequest(BaseModel):
+    """GUI batch screening-insights request schema."""
+
+    outcar_paths: list[str] = Field(..., description="OUTCAR path list")
+    energy_tolerance_ev: float = Field(default=1e-4)
+    force_tolerance_ev_per_a: float = Field(default=0.02)
+    top_n: int = Field(default=5)
+    fail_fast: bool = Field(default=False)
+
+
 class UiDiagnosticsRequest(BaseModel):
     """GUI diagnostics request schema."""
 
@@ -204,6 +214,19 @@ def create_gui_app(
                 outcar_paths=request.outcar_paths,
                 energy_tolerance_ev=request.energy_tolerance_ev,
                 force_tolerance_ev_per_a=request.force_tolerance_ev_per_a,
+                fail_fast=request.fail_fast,
+            )
+        except Exception as exc:
+            _raise_ui_http_error(exc)
+
+    @app.post("/ui/batch-insights")
+    def ui_batch_insights(request: UiBatchInsightsRequest) -> dict:
+        try:
+            return app.state.bridge.batch_insights_outcars(
+                outcar_paths=request.outcar_paths,
+                energy_tolerance_ev=request.energy_tolerance_ev,
+                force_tolerance_ev_per_a=request.force_tolerance_ev_per_a,
+                top_n=request.top_n,
                 fail_fast=request.fail_fast,
             )
         except Exception as exc:

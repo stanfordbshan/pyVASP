@@ -114,6 +114,45 @@ class BatchDiagnosticsRequestPayload:
 
 
 @dataclass(frozen=True)
+class BatchInsightsRequestPayload:
+    """Canonical request payload for batch OUTCAR screening insights."""
+
+    outcar_paths: tuple[str, ...]
+    energy_tolerance_ev: float = 1e-4
+    force_tolerance_ev_per_a: float = 0.02
+    top_n: int = 5
+    fail_fast: bool = False
+
+    @classmethod
+    def from_mapping(cls, raw: dict[str, Any]) -> "BatchInsightsRequestPayload":
+        paths_raw = raw.get("outcar_paths")
+        if not isinstance(paths_raw, (list, tuple)) or not paths_raw:
+            raise ValidationError("outcar_paths must be a non-empty list of paths")
+
+        normalized: list[str] = []
+        for idx, value in enumerate(paths_raw, start=1):
+            token = str(value).strip()
+            if not token:
+                raise ValidationError(f"outcar_paths[{idx}] must be a non-empty path string")
+            normalized.append(token)
+
+        top_n = _coerce_positive_int(raw.get("top_n", 5), "top_n")
+        if top_n > 100:
+            raise ValidationError("top_n must be <= 100")
+
+        return cls(
+            outcar_paths=tuple(normalized),
+            energy_tolerance_ev=_coerce_positive_float(raw.get("energy_tolerance_ev", 1e-4), "energy_tolerance_ev"),
+            force_tolerance_ev_per_a=_coerce_positive_float(
+                raw.get("force_tolerance_ev_per_a", 0.02),
+                "force_tolerance_ev_per_a",
+            ),
+            top_n=top_n,
+            fail_fast=bool(raw.get("fail_fast", False)),
+        )
+
+
+@dataclass(frozen=True)
 class DiscoverOutcarRunsRequestPayload:
     """Canonical request payload for discovering OUTCAR files from a root directory."""
 
@@ -610,6 +649,77 @@ class BatchDiagnosticsResponsePayload:
 
 
 @dataclass(frozen=True)
+class BatchInsightsRowPayload:
+    """Per-OUTCAR screening row for batch-insights responses."""
+
+    outcar_path: str
+    status: str
+    system_name: str | None
+    final_total_energy_ev: float | None
+    max_force_ev_per_a: float | None
+    external_pressure_kb: float | None
+    is_converged: bool | None
+    warnings: tuple[str, ...]
+    error: dict[str, Any] | None = None
+
+    def to_mapping(self) -> dict[str, Any]:
+        mapped = asdict(self)
+        mapped["warnings"] = list(self.warnings)
+        return mapped
+
+
+@dataclass(frozen=True)
+class BatchInsightsTopRunPayload:
+    """Ranked low-energy run summary included in batch-insights responses."""
+
+    rank: int
+    outcar_path: str
+    system_name: str | None
+    final_total_energy_ev: float
+    max_force_ev_per_a: float | None
+    is_converged: bool | None
+
+    def to_mapping(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class BatchInsightsResponsePayload:
+    """Canonical batch-insights response consumed by adapters."""
+
+    total_count: int
+    success_count: int
+    error_count: int
+    converged_count: int
+    not_converged_count: int
+    unknown_convergence_count: int
+    energy_min_ev: float | None
+    energy_max_ev: float | None
+    energy_mean_ev: float | None
+    energy_span_ev: float | None
+    mean_max_force_ev_per_a: float | None
+    top_lowest_energy: tuple[BatchInsightsTopRunPayload, ...]
+    rows: tuple[BatchInsightsRowPayload, ...]
+
+    def to_mapping(self) -> dict[str, Any]:
+        return {
+            "total_count": self.total_count,
+            "success_count": self.success_count,
+            "error_count": self.error_count,
+            "converged_count": self.converged_count,
+            "not_converged_count": self.not_converged_count,
+            "unknown_convergence_count": self.unknown_convergence_count,
+            "energy_min_ev": self.energy_min_ev,
+            "energy_max_ev": self.energy_max_ev,
+            "energy_mean_ev": self.energy_mean_ev,
+            "energy_span_ev": self.energy_span_ev,
+            "mean_max_force_ev_per_a": self.mean_max_force_ev_per_a,
+            "top_lowest_energy": [row.to_mapping() for row in self.top_lowest_energy],
+            "rows": [row.to_mapping() for row in self.rows],
+        }
+
+
+@dataclass(frozen=True)
 class DiagnosticsResponsePayload:
     """Canonical diagnostics response consumed by API/GUI/CLI adapters."""
 
@@ -877,6 +987,17 @@ def validate_batch_diagnostics_request(raw: dict[str, Any]) -> BatchDiagnosticsR
 
     try:
         return BatchDiagnosticsRequestPayload.from_mapping(raw)
+    except ValidationError:
+        raise
+    except Exception as exc:  # pragma: no cover - defensive normalization
+        raise ValidationError(str(exc)) from exc
+
+
+def validate_batch_insights_request(raw: dict[str, Any]) -> BatchInsightsRequestPayload:
+    """Map arbitrary adapter payload into canonical batch-insights request object."""
+
+    try:
+        return BatchInsightsRequestPayload.from_mapping(raw)
     except ValidationError:
         raise
     except Exception as exc:  # pragma: no cover - defensive normalization

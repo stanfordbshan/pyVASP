@@ -5,6 +5,7 @@ from pathlib import Path
 from pyvasp.application.use_cases import (
     BatchDiagnoseOutcarUseCase,
     BatchSummarizeOutcarUseCase,
+    BuildBatchInsightsUseCase,
     BuildConvergenceProfileUseCase,
     BuildDosProfileUseCase,
     BuildIonicSeriesUseCase,
@@ -35,6 +36,7 @@ from pyvasp.core.models import (
 )
 from pyvasp.core.payloads import (
     BatchDiagnosticsRequestPayload,
+    BatchInsightsRequestPayload,
     BatchSummaryRequestPayload,
     ConvergenceProfileRequestPayload,
     DiscoverOutcarRunsRequestPayload,
@@ -360,6 +362,48 @@ def test_batch_diagnostics_use_case_fail_fast_stops_early() -> None:
     assert result.value.total_count == 1
     assert result.value.success_count == 0
     assert result.value.error_count == 1
+
+
+def test_batch_insights_use_case_mixed_results() -> None:
+    use_case = BuildBatchInsightsUseCase(reader=WorkingObservablesReader())
+    request = BatchInsightsRequestPayload(
+        outcar_paths=(str(FIXTURE), "/missing/OUTCAR"),
+        energy_tolerance_ev=1e-4,
+        force_tolerance_ev_per_a=0.02,
+        top_n=3,
+        fail_fast=False,
+    )
+
+    result = use_case.execute(request)
+    assert result.ok is True
+    assert result.value is not None
+    assert result.value.total_count == 2
+    assert result.value.success_count == 1
+    assert result.value.error_count == 1
+    assert result.value.converged_count == 1
+    assert result.value.energy_min_ev == -20.00005
+    assert result.value.top_lowest_energy[0].outcar_path == str(FIXTURE)
+    assert result.value.rows[1].error is not None
+    assert result.value.rows[1].error["code"] == "FILE_NOT_FOUND"
+
+
+def test_batch_insights_use_case_fail_fast_stops_early() -> None:
+    use_case = BuildBatchInsightsUseCase(reader=WorkingObservablesReader())
+    request = BatchInsightsRequestPayload(
+        outcar_paths=("/missing/OUTCAR", str(FIXTURE)),
+        energy_tolerance_ev=1e-4,
+        force_tolerance_ev_per_a=0.02,
+        top_n=3,
+        fail_fast=True,
+    )
+
+    result = use_case.execute(request)
+    assert result.ok is True
+    assert result.value is not None
+    assert result.value.total_count == 1
+    assert result.value.success_count == 0
+    assert result.value.error_count == 1
+    assert result.value.top_lowest_energy == ()
 
 
 def test_diagnostics_use_case_success() -> None:
