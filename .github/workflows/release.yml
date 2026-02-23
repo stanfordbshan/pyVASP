@@ -23,15 +23,18 @@ jobs:
           - os: macos-latest
             asset_suffix: macos
             add_data_sep: ":"
-            executable: pyvasp
+            pyinstaller_mode: --onedir
+            package_path: dist/pyvasp.app
           - os: ubuntu-latest
             asset_suffix: linux
             add_data_sep: ":"
-            executable: pyvasp
+            pyinstaller_mode: --onefile
+            package_path: dist/pyvasp
           - os: windows-latest
             asset_suffix: windows
             add_data_sep: ";"
-            executable: pyvasp.exe
+            pyinstaller_mode: --onefile
+            package_path: dist/pyvasp.exe
 
     steps:
       - name: Check out repository
@@ -52,7 +55,7 @@ jobs:
           python -m PyInstaller \
             --noconfirm \
             --clean \
-            --onefile \
+            ${{ matrix.pyinstaller_mode }} \
             --windowed \
             --name pyvasp \
             --paths src \
@@ -64,7 +67,7 @@ jobs:
         env:
           ASSET_NAME: pyvasp-${{ github.ref_name }}-${{ matrix.asset_suffix }}.zip
         run: |
-          python -m zipfile -c "$ASSET_NAME" "dist/${{ matrix.executable }}"
+          python -m zipfile -c "$ASSET_NAME" "${{ matrix.package_path }}"
 
       - name: Upload packaged artifact
         uses: actions/upload-artifact@v4
